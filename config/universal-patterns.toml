@@ -5,7 +5,7 @@ description = 'Vulnerability Discovered'
 
 [anonymous]
 pattern = 'anonymous'
-description = 'Anonymous Detected'
+description = 'Anonymous User Detected'
 
 
 [ftp_anonymous]
