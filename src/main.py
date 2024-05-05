@@ -133,9 +133,10 @@ class Artemis:
         self.port_scan_type = port_scan_type
         self.nmap_extra = nmap_extra
         self.ports = ports
-        home_directory = os.path.expanduser("~")
-        output_directory = output_directory or os.path.join(os.getcwd(), 'results', self.address)
-        config_directory = config_directory or os.path.join(home_directory, '.config', 'artemis')
+        self.current_directory = os.path.dirname(os.path.realpath(__file__))
+
+        output_directory = output_directory or os.path.join(self.current_directory, 'results', self.address)
+        config_directory = self.get_config(config_directory)
         port_scan_config_file = os.path.join(config_directory, 'port-scans.toml')
         services_scan_config_file = os.path.join(config_directory, 'service-scans.toml')
         universal_pattern_config_file = os.path.join(config_directory, 'universal-patterns.toml')
@@ -171,6 +172,21 @@ class Artemis:
         self.manual_steps_log = os.path.join(log_directory, 'manual_steps.log')
         self.patterns_detected_log = os.path.join(log_directory, 'patterns.log')
         utils.clear_file(self.manual_steps_log)
+
+    def get_config(self, config_directory: str):
+        # use user-specified artemis config directory
+        if config_directory:
+            return config_directory
+
+        # use artemis config directory in home folder (if it exists)
+        # checks ~/.config/artemis
+        home_directory = os.path.expanduser("~")
+        artemis_home_config_directory = os.path.join(home_directory, '.config', 'artemis')
+        if os.path.exists(artemis_home_config_directory):
+            return artemis_home_config_directory
+
+        # use artemis config directory in current directory
+        return os.path.join(self.current_directory, 'config')
 
     def print(self, _str: str) -> None:
         """
