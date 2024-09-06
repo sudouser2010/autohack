@@ -13,7 +13,7 @@
     ```
 * Run as terminal inside container
   ```
-  docker run -ti -v ${PWD}:/root artemis /bin/bash
+  docker run -ti -v ${PWD}:/root/repo artemis /bin/bash
   ```
 
 * Run Artemis
