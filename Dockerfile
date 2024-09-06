@@ -35,7 +35,7 @@ RUN conda init
 
 # Setup Artemis Python Package
 RUN conda create --name artemis python=3.10 --yes
-RUN pip install artemis-hunter
+RUN /root/miniconda3/envs/artemis/bin/pip install artemis-hunter --root-user-action=ignore
 
 WORKDIR /root/repo
 
