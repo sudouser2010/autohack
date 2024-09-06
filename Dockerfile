@@ -37,5 +37,8 @@ RUN conda init
 RUN conda create --name artemis python=3.10 --yes
 RUN /root/miniconda3/envs/artemis/bin/pip install artemis-hunter --root-user-action=ignore
 
+# Activate Artemis Conda On Container Start
+RUN echo "source activate artemis" > ~/.bashrc
+
 WORKDIR /root/repo
 
