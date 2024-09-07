@@ -1,13 +1,13 @@
 [project]
 dynamic = ["readme", "requires-python", "authors", "classifiers", "urls"]
 
-name = "artemis-hunter"
-version = "0.114"
+name = "autohack"
+version = "0.1"
 dependencies = [
   "toml==0.10.2",
   "beautifulsoup4==4.12.3"
 ]
-description = "This package does automated vulnerability enumeration and recommends exploits"
+description = "This package does automated vulnerability enumeration and recommends exploits."
 
 [build-system]
 requires = ["setuptools==65"]

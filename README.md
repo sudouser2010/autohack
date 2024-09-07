@@ -1,4 +1,4 @@
-# Artemis Hunter
+# Auto Hack
 * note the setup steps described here are being beta-tested.
 
 ## This package does automated vulnerability enumeration and recommends exploits.<br><br>
@@ -9,28 +9,28 @@
 * Build image
 
     ```
-    docker build -t artemis .
+    docker build -t autohack .
     ```
 * Run as terminal inside container
   ```
-  docker run -ti -v ${PWD}:/root/repo artemis
+  docker run -ti -v ${PWD}:/root/repo autohack
   ```
 
-* Run Artemis
+* Run AutoHack
 
   ```
-  artemis_hunter 
+  autohack 
   ```
   
 ---  
 
 ### How to Run on Kali-Linux Operating System
-* Install Artemis Python Package
+* Install AutoHack Python Package
 
     ```
-    pip install artemis_hunter
+    pip install autohack
     ```
-* Run Artemis
+* Run AutoHack
   ```
-  artemis_hunter 
+  autohack 
   ```

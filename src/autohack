@@ -21,7 +21,7 @@ class Colors:
 
 
 class Utils:
-    class ArtemisException(Exception):
+    class AutoHackException(Exception):
         pass
 
     @staticmethod
@@ -124,7 +124,7 @@ class Utils:
 utils = Utils()
 
 
-class Artemis:
+class AutoHack:
     def __init__(
             self, ip_address, output_directory=None, config_directory=None,
             port_scan_type=None, nmap_extra=None, ports=None) -> None:
@@ -142,11 +142,11 @@ class Artemis:
         universal_pattern_config_file = os.path.join(config_directory, 'universal-patterns.toml')
 
         if not os.path.isfile(port_scan_config_file):
-            raise utils.ArtemisException(f'Can Not Find Port Scan Config File inside: {config_directory} Directory')
+            raise utils.AutoHackException(f'Can Not Find Port Scan Config File inside: {config_directory} Directory')
         if not os.path.isfile(services_scan_config_file):
-            raise utils.ArtemisException(f'Can Not Find Services Scan Config File: {config_directory} Directory')
+            raise utils.AutoHackException(f'Can Not Find Services Scan Config File: {config_directory} Directory')
         if not os.path.isfile(universal_pattern_config_file):
-            raise utils.ArtemisException(f'Can Not Find Universal Pattern Config File: {config_directory} Directory')
+            raise utils.AutoHackException(f'Can Not Find Universal Pattern Config File: {config_directory} Directory')
 
         self.port_scan_config = toml.load(port_scan_config_file)
         self.services_scan_config = toml.load(services_scan_config_file)
@@ -174,18 +174,18 @@ class Artemis:
         utils.clear_file(self.manual_steps_log)
 
     def get_config(self, config_directory: str):
-        # use user-specified artemis config directory
+        # use user-specified AutoHack config directory
         if config_directory:
             return config_directory
 
-        # use artemis config directory in home folder (if it exists)
-        # checks ~/.config/artemis
+        # use AutoHack config directory in home folder (if it exists)
+        # checks ~/.config/autohack
         home_directory = os.path.expanduser("~")
-        artemis_home_config_directory = os.path.join(home_directory, '.config', 'artemis')
-        if os.path.exists(artemis_home_config_directory):
-            return artemis_home_config_directory
+        autohack_home_config_directory = os.path.join(home_directory, '.config', 'autohack')
+        if os.path.exists(autohack_home_config_directory):
+            return autohack_home_config_directory
 
-        # use artemis config directory in current directory
+        # use AutoHack config directory in current directory
         return os.path.join(self.current_directory, 'config')
 
     def print(self, _str: str) -> None:
@@ -470,8 +470,8 @@ if __name__ == "__main__":
         dest='ports', help='Ports to Scan', default='80'
     )
     args = parser.parse_args()
-    artemis = Artemis(
+    autohack = AutoHack(
         args.ip_address, args.output_folder, args.config_folder,
         args.port_scan_type, args.nmap_extra, args.ports
     )
-    artemis.enumerate()
+    autohack.enumerate()

@@ -19,7 +19,7 @@ RUN apt -y install kali-tools-top10 exploitdb man-db dirb nikto wpscan uniscan l
     oscanner tnscmd10g rpcbind nfs-common sqsh dirsearch whatweb wkhtmltopdf unicornscan
 
 
-# Install Conda for Artemis
+# Install Conda for AutoHack
 ENV PATH="/root/miniconda3/bin:${PATH}"
 ARG PATH="/root/miniconda3/bin:${PATH}"
 RUN apt-get update
@@ -33,12 +33,12 @@ RUN wget \
 RUN conda --version
 RUN conda init
 
-# Setup Artemis Python Package
-RUN conda create --name artemis python=3.10 --yes
-RUN /root/miniconda3/envs/artemis/bin/pip install artemis-hunter==0.114 --root-user-action=ignore
+# Setup AutoHack Python Package
+RUN conda create --name autohack python=3.10 --yes
+RUN /root/miniconda3/envs/autohack/bin/pip install autohack==0.1 --root-user-action=ignore
 
-# Activate Artemis Conda On Container Start
-RUN echo "source activate artemis" > ~/.bashrc
+# Activate AutoHack Conda On Container Start
+RUN echo "source activate autohack" > ~/.bashrc
 
 WORKDIR /root/repo
 
