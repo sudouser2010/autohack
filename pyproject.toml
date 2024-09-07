@@ -1,9 +1,13 @@
 [project]
-dynamic = ["dependencies", "optional-dependencies"]
+dynamic = ["readme", "requires-python", "authors", "version", "classifiers", "urls", "version"]
+
+name = "artermis-hunter"
+dependencies = [
+  "toml==0.10.2",
+  "beautifulsoup4==4.12.3"
+]
+description = "This package does automated vulnerability enumeration and recommends exploits"
 
 [build-system]
-requires = ["setuptools>=42"]
+requires = ["setuptools==65"]
 build-backend = "setuptools.build_meta"
-
-[tool.setuptools.dynamic]
-dependencies = { file = ["requirements.txt"] }
