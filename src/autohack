@@ -133,9 +133,12 @@ class AutoHack:
         self.port_scan_type = port_scan_type
         self.nmap_extra = nmap_extra
         self.ports = ports
-        self.current_directory = os.path.dirname(os.path.realpath(__file__))
+        self.current_working_directory = os.getcwd()
 
-        output_directory = output_directory or os.path.join(self.current_directory, 'results', self.address)
+        output_directory = output_directory or os.path.join(
+            self.current_working_directory,
+            'results', self.address
+        )
         config_directory = self.get_config(config_directory)
         port_scan_config_file = os.path.join(config_directory, 'port-scans.toml')
         services_scan_config_file = os.path.join(config_directory, 'service-scans.toml')
@@ -174,19 +177,46 @@ class AutoHack:
         utils.clear_file(self.manual_steps_log)
 
     def get_config(self, config_directory: str):
+        """
+        The config directory is needed for enumeration.
+        This method checks for the config directory in all the
+        expected places. If it cannot be found, it raises an exception
+
+        :param config_directory:
+        :return:
+        """
         # use user-specified AutoHack config directory
         if config_directory:
             return config_directory
 
-        # use AutoHack config directory in home folder (if it exists)
-        # checks ~/.config/autohack
-        home_directory = os.path.expanduser("~")
-        autohack_home_config_directory = os.path.join(home_directory, '.config', 'autohack')
-        if os.path.exists(autohack_home_config_directory):
-            return autohack_home_config_directory
+        # define <current-working-directory>/autohack_config
+        local_config_directory = os.path.join(
+            self.current_working_directory, 'autohack_config'
+        )
 
-        # use AutoHack config directory in current directory
-        return os.path.join(self.current_directory, 'config')
+        # define <current-working-directory>/src/autohack_config
+        local_config_directory_when_in_repo = os.path.join(
+            self.current_working_directory, 'src', 'autohack_config'
+        )
+
+        # define ~/.config/autohack_config
+        home_directory = os.path.expanduser("~")
+        global_config_directory = os.path.join(
+            home_directory, '.config', 'autohack_config'
+        )
+
+        possible_config_directories_locations = [
+            local_config_directory,
+            local_config_directory_when_in_repo,
+            global_config_directory
+        ]
+
+        for prospective_directory in possible_config_directories_locations:
+            if os.path.exists(prospective_directory):
+                return prospective_directory
+
+        # raise exception when config directory couldn't be found
+        raise utils.AutoHackException('Can Not Find Config Directory')
 
     def print(self, _str: str) -> None:
         """
@@ -454,8 +484,14 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Does Enumeration')
     parser.add_argument('-i', '--ip_address', action='store', type=str,
                         dest='ip_address', help='IP Address', required=True)
-    parser.add_argument('-c', '--config', action='store', type=str, dest='config_folder', help='Config Folder')
-    parser.add_argument('-o', '--output', action='store', type=str, dest='output_folder', help='Output Folder')
+    parser.add_argument(
+        '-c', '--config', action='store', type=str,
+        dest='config_folder', help='Config Folder'
+    )
+    parser.add_argument(
+        '-o', '--output', action='store', type=str,
+        dest='output_folder', help='Output Folder',
+    )
     parser.add_argument(
         '--port_scan_type', action='store', type=str,
         default="default", choices=["default", "quick", "udp"],
