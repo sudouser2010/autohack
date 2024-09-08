@@ -1,23 +1,23 @@
-[default]
+[full]
 
-    [default.nmap-quick]
+    [full.nmap-quick]
 
-        [default.nmap-quick.service-detection]
+        [full.nmap-quick.service-detection]
         command = 'nmap {nmap_extra} -sV -sC --version-all -oN "{scandir}/_quick_tcp_nmap.txt" -oX "{scandir}/xml/_quick_tcp_nmap.xml" {address}'
 
-    [default.nmap-full-tcp]
+    [full.nmap-full-tcp]
 
-        [default.nmap-full-tcp.service-detection]
+        [full.nmap-full-tcp.service-detection]
         command = 'nmap {nmap_extra} -A --osscan-guess --version-all -p- -oN "{scandir}/_full_tcp_nmap.txt" -oX "{scandir}/xml/_full_tcp_nmap.xml" {address}'
 
-    [default.nmap-top-20-udp]
+    [full.nmap-top-20-udp]
 
-        [default.nmap-top-20-udp.service-detection]
+        [full.nmap-top-20-udp.service-detection]
         command = 'nmap {nmap_extra} -sU -A --top-ports=20 --version-all -oN "{scandir}/_top_20_udp_nmap.txt" -oX "{scandir}/xml/_top_20_udp_nmap.xml" {address}'
 
-    [default.nmap-vulns]
+    [full.nmap-vulns]
 
-        [default.nmap-vulns.service-detection]
+        [full.nmap-vulns.service-detection]
         command = 'nmap {nmap_extra} --script=*vuln* -oN "{scandir}/_vulns_nmap.txt" -oX "{scandir}/xml/_vulns_nmap.xml" {address}'
 
 [quick]
