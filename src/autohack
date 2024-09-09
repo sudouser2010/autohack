@@ -362,13 +362,48 @@ class AutoHack:
         process = Popen(command, shell=True, stdout=PIPE, stderr=PIPE)
         _, __ = process.communicate()
 
-    def primary_enumerate(
+    def execute_secondary_enumerate_command(
+            self, command: str,
+            service_data: dict,
+            patterns: List[dict]
+    ) -> None:
+        """
+        Executes command for secondary enumeration
+        on text-based file outputs
+
+        :param command:
+        :param service_data:
+        :param patterns:
+        :return:
+        """
+        command = command.format(**service_data)
+        if command in self.commands_ran:
+            return
+
+        text_file_related_parameters = ['-on', 'tee', '-o', '--simple-report']
+        output_file = utils.determine_output_file(command, text_file_related_parameters)
+        if utils.should_run_command(output_file):
+            self.commands_ran.add(command)
+            command = 'sudo ' + command
+            command_printed = f"SECONDARY ENUMERATE:\n\t{Colors.GREEN}{command}{Colors.END}"
+            self.thread_print(command_printed)
+            self.run_command(command)
+            self.thread_print(f"{Colors.MAGENTA}{Colors.BOLD}Command Completed{Colors.END}")
+
+        if output_file is None:
+            return
+
+        self.record_pattern_matches(output_file, patterns, service_data)
+
+    def execute_primary_enumerate_command(
             self, command: str,
             service_data: dict,
             patterns: List[dict]
     ) -> None:
         """
         Executes command for primary enumeration
+        on xml-based file outputs
+
         :param command:
         :param service_data:
         :param patterns:
@@ -383,7 +418,7 @@ class AutoHack:
         if utils.should_run_command(output_file):
             self.commands_ran.add(command)
             command = 'sudo ' + command
-            command_printed = f"{Colors.GREEN}{command}{Colors.END}"
+            command_printed = f"PRIMARY ENUMERATE:\n\t{Colors.GREEN}{command}{Colors.END}"
             self.thread_print(command_printed)
             self.run_command(command)
             self.thread_print(f"{Colors.MAGENTA}{Colors.BOLD}Command Completed{Colors.END}")
@@ -396,7 +431,8 @@ class AutoHack:
 
     def secondary_enumerate(self, xml_output_file: str) -> None:
         """
-        Does secondary enumeration based on scans in the service-scans.toml in config folder.
+        Does secondary enumeration based on sub-scans in
+        the service-scans.toml in config folder and xml-output files
         :param xml_output_file::
         :return:
         """
@@ -448,69 +484,16 @@ class AutoHack:
                     command = sub_scan['command']
                     patterns = sub_scan.get('pattern', [])
                     th = Thread(
-                        target=self.tertiary_enumerate,
+                        target=self.execute_secondary_enumerate_command,
                         args=(command, service_scan_data, patterns)
                     )
                     th.start()
             self.log_detected_services()
 
-    def tertiary_enumerate(
-            self, command: str,
-            service_data: dict,
-            patterns: List[dict]
-    ) -> None:
+    def primary_enumerate(self) -> None:
         """
-        Executes command for tertiary enumeration.
-        This is similar to primary enumeration; but it does not
-        trigger additional scans based on the output files of
-        this enumeration.
-
-        :param command:
-        :param service_data:
-        :param patterns:
-        :return:
-        """
-        command = command.format(**service_data)
-        if command in self.commands_ran:
-            return
-
-        text_file_related_parameters = ['-on', 'tee', '-o', '--simple-report']
-        output_file = utils.determine_output_file(command, text_file_related_parameters)
-        if utils.should_run_command(output_file):
-            self.commands_ran.add(command)
-            command = 'sudo ' + command
-            command_printed = f"{Colors.GREEN}{command}{Colors.END}"
-            self.thread_print(command_printed)
-            self.run_command(command)
-            self.thread_print(f"{Colors.MAGENTA}{Colors.BOLD}Command Completed{Colors.END}")
-
-        if output_file is None:
-            return
-
-        self.record_pattern_matches(output_file, patterns, service_data)
-
-    def enumerate(self) -> None:
-        """
-        Kicks off the primary enumeration process.
-
-        Note:
-            Primary Scans are based on the service-scans.toml file,
-
-            Secondary Scans are based on the:
-                -xml output of Primary Scans
-                        and
-                -service-scans.toml in the autohack_config
-
-            Tertiary Scans are based on the:
-                -text output of Secondary Scans
-                        and
-                -service-scans.toml in the autohack_config
-
-        Also Note:
-            Primary Scans --triggers-->
-            Secondary Scans --triggers-->
-            Tertiary Scans --triggers-->
-
+        Does primary enumeration based on scans in the
+        service-scans.toml in config folder and user-selected scan type
         :return:
         """
         port_scan_data = {
@@ -523,13 +506,30 @@ class AutoHack:
             for sub_scan in scan.values():
                 command = sub_scan['command']
                 th = Thread(
-                    target=self.primary_enumerate,
+                    target=self.execute_primary_enumerate_command,
                     args=(command, port_scan_data, [])
                 )
                 th.start()
 
 
 if __name__ == "__main__":
+    """
+        * Primary Enumeration is based on the:
+            -user-selected port scan type
+            -service scans in autohack_config.
+            
+            This creates xml files which are:
+                -analyzed for regex patterns 
+                -(secondary) enumerated
+        
+        
+        * Secondary Enumeration is based on the:
+            -xml output from Primary Enumeration
+            -service sub-scans in autohack_config.
+            
+            This creates text files which are:
+                -analyzed for regex patterns
+    """
     parser = argparse.ArgumentParser(description='Does Enumeration')
     parser.add_argument('-i', '--ip_address', action='store', type=str,
                         dest='ip_address', help='IP Address', required=True)
@@ -559,4 +559,4 @@ if __name__ == "__main__":
         args.ip_address, args.output_folder, args.config_folder,
         args.port_scan_type, args.nmap_extra, args.ports
     )
-    autohack.enumerate()
+    autohack.primary_enumerate()
