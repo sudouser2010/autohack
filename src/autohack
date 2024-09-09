@@ -127,13 +127,16 @@ utils = Utils()
 class AutoHack:
     def __init__(
             self, ip_address, output_directory=None, config_directory=None,
-            port_scan_type=None, nmap_extra=None, ports=None) -> None:
+            port_scan_type=None, nmap_extra=None, ports=None,
+            use_threads=None
+    ) -> None:
         self.thread_lock = Lock()
         self.address = ip_address
         self.port_scan_type = port_scan_type
         self.nmap_extra = nmap_extra
         self.ports = ports
         self.current_working_directory = os.getcwd()
+        self.use_threads = use_threads
 
         output_directory = output_directory or os.path.join(
             self.current_working_directory,
@@ -236,8 +239,9 @@ class AutoHack:
         :param _str:
         :return:
         """
-        thread_id = current_thread().native_id
-        _str = f"{Colors.CYAN}{Colors.BOLD}Thread {thread_id}:{Colors.END} {_str}"
+        if self.use_threads:
+            thread_id = current_thread().native_id
+            _str = f"{Colors.CYAN}{Colors.BOLD}Thread {thread_id}:{Colors.END} {_str}"
         self.print(_str)
 
     def log_command(self, command: str) -> None:
@@ -398,7 +402,6 @@ class AutoHack:
     def execute_primary_enumerate_command(
             self, command: str,
             service_data: dict,
-            patterns: List[dict]
     ) -> None:
         """
         Executes command for primary enumeration
@@ -406,7 +409,6 @@ class AutoHack:
 
         :param command:
         :param service_data:
-        :param patterns:
         :return:
         """
         command = command.format(**service_data)
@@ -426,7 +428,6 @@ class AutoHack:
         if output_file is None:
             return
 
-        self.record_pattern_matches(output_file, patterns, service_data)
         self.secondary_enumerate(output_file)
 
     def secondary_enumerate(self, xml_output_file: str) -> None:
@@ -450,6 +451,9 @@ class AutoHack:
                 continue
 
             service = port.find('service')
+            if service is None:
+                continue
+
             service_scan_data = {
                 'nmap_extra': self.nmap_extra,
                 'scandir': self.scan_directory,
@@ -483,11 +487,17 @@ class AutoHack:
                 for sub_scan in scan['scan']:
                     command = sub_scan['command']
                     patterns = sub_scan.get('pattern', [])
-                    th = Thread(
-                        target=self.execute_secondary_enumerate_command,
-                        args=(command, service_scan_data, patterns)
-                    )
-                    th.start()
+                    if self.use_threads:
+                        th = Thread(
+                            target=self.execute_secondary_enumerate_command,
+                            args=(command, service_scan_data, patterns)
+                        )
+                        th.start()
+                    else:
+                        self.execute_secondary_enumerate_command(
+                            command, service_scan_data, patterns
+                        )
+
             self.log_detected_services()
 
     def primary_enumerate(self) -> None:
@@ -505,11 +515,16 @@ class AutoHack:
         for scan_name, scan in self.port_scan_config[self.port_scan_type].items():
             for sub_scan in scan.values():
                 command = sub_scan['command']
-                th = Thread(
-                    target=self.execute_primary_enumerate_command,
-                    args=(command, port_scan_data, [])
-                )
-                th.start()
+                if self.use_threads:
+                    th = Thread(
+                        target=self.execute_primary_enumerate_command,
+                        args=(command, port_scan_data)
+                    )
+                    th.start()
+                else:
+                    self.execute_primary_enumerate_command(
+                        command, port_scan_data
+                    )
 
 
 if __name__ == "__main__":
@@ -519,7 +534,6 @@ if __name__ == "__main__":
             -service scans in autohack_config.
             
             This creates xml files which are:
-                -analyzed for regex patterns 
                 -(secondary) enumerated
         
         
@@ -554,9 +568,16 @@ if __name__ == "__main__":
         '-p', '--ports', action='store', type=str,
         dest='ports', help='Ports to Scan', default='80'
     )
+    parser.add_argument(
+        '-u', '--use_threads', action='store', type=bool,
+        dest='use_threads', help='Should Use Threads',
+        default=False
+    )
     args = parser.parse_args()
     autohack = AutoHack(
         args.ip_address, args.output_folder, args.config_folder,
-        args.port_scan_type, args.nmap_extra, args.ports
+        args.port_scan_type, args.nmap_extra, args.ports,
+        args.use_threads,
     )
     autohack.primary_enumerate()
+    print('AutoHack Complete')
