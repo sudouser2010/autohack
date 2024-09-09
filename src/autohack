@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import os
 import re
+import time
 import shlex
 import argparse
 from subprocess import Popen, PIPE
@@ -45,6 +46,11 @@ class Utils:
         """
         with open(_file, 'w') as f:
             f.write('')
+
+    @staticmethod
+    def print_time():
+        current_time_in_seconds = int(time.time())
+        print(f"{Colors.MAGENTA}{Colors.BOLD}CURRENT TIME{Colors.END}: {current_time_in_seconds}")
 
     @staticmethod
     def determine_output_file(command: str, options_associated_with_output_file: List[str]) -> Union[str, None]:
@@ -392,7 +398,8 @@ class AutoHack:
             command_printed = f"SECONDARY ENUMERATE:\n\t{Colors.GREEN}{command}{Colors.END}"
             self.thread_print(command_printed)
             self.run_command(command)
-            self.thread_print(f"{Colors.MAGENTA}{Colors.BOLD}Command Completed{Colors.END}")
+            self.thread_print(f"{Colors.MAGENTA}{Colors.BOLD}Command Completed{Colors.END}\n")
+            utils.print_time()
 
         if output_file is None:
             return
@@ -423,7 +430,7 @@ class AutoHack:
             command_printed = f"PRIMARY ENUMERATE:\n\t{Colors.GREEN}{command}{Colors.END}"
             self.thread_print(command_printed)
             self.run_command(command)
-            self.thread_print(f"{Colors.MAGENTA}{Colors.BOLD}Command Completed{Colors.END}")
+            self.thread_print(f"{Colors.MAGENTA}{Colors.BOLD}Command Completed{Colors.END}\n")
 
         if output_file is None:
             return
@@ -579,5 +586,5 @@ if __name__ == "__main__":
         args.port_scan_type, args.nmap_extra, args.ports,
         args.use_threads,
     )
+    utils.print_time()
     autohack.primary_enumerate()
-    print('AutoHack Complete')
