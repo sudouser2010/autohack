@@ -52,7 +52,7 @@ class Utils:
         Parses command for output file and returns...
             (1) the output file if determined
                         or
-            (2) None, if output file can not determined
+            (2) None, if output file can not be determined
         :param command:
         :param options_associated_with_output_file:
         :return:
@@ -293,8 +293,9 @@ class AutoHack:
 
     def record_pattern_matches(self, output_file: str, patterns: List[dict], service_data: dict) -> None:
         """
-        Checks output file for patterns
-        and then saves pattern description
+        Checks output file for certain regex patterns
+        and then saves pattern description for future analysis.
+
         :param output_file:
         :param patterns:
         :param service_data:
@@ -361,25 +362,24 @@ class AutoHack:
         process = Popen(command, shell=True, stdout=PIPE, stderr=PIPE)
         _, __ = process.communicate()
 
-    def process_enumeration_command(
-            self, command: str, service_data: dict, patterns: List[dict], _type: str = 'primary') -> None:
+    def primary_enumerate(
+            self, command: str,
+            service_data: dict,
+            patterns: List[dict]
+    ) -> None:
         """
-        Executes command for primary or secondary enumeration
+        Executes command for primary enumeration
         :param command:
         :param service_data:
         :param patterns:
-        :param _type:
         :return:
         """
         command = command.format(**service_data)
         if command in self.commands_ran:
             return
 
-        output_file_flags = {
-            'primary': ['-ox'],                 # flag associated with xml files
-            'secondary': ['-on', 'tee', '-o', '--simple-report']   # flag associated with text files
-        }
-        output_file = utils.determine_output_file(command, output_file_flags[_type])
+        xml_file_related_parameters = ['-ox']
+        output_file = utils.determine_output_file(command, xml_file_related_parameters)
         if utils.should_run_command(output_file):
             self.commands_ran.add(command)
             command = 'sudo ' + command
@@ -392,8 +392,7 @@ class AutoHack:
             return
 
         self.record_pattern_matches(output_file, patterns, service_data)
-        if _type == 'primary':
-            self.secondary_enumerate(output_file)
+        self.secondary_enumerate(output_file)
 
     def secondary_enumerate(self, xml_output_file: str) -> None:
         """
@@ -449,19 +448,69 @@ class AutoHack:
                     command = sub_scan['command']
                     patterns = sub_scan.get('pattern', [])
                     th = Thread(
-                        target=self.process_enumeration_command,
-                        args=(command, service_scan_data, patterns, 'secondary')
+                        target=self.tertiary_enumerate,
+                        args=(command, service_scan_data, patterns)
                     )
                     th.start()
             self.log_detected_services()
 
+    def tertiary_enumerate(
+            self, command: str,
+            service_data: dict,
+            patterns: List[dict]
+    ) -> None:
+        """
+        Executes command for tertiary enumeration.
+        This is similar to primary enumeration; but it does not
+        trigger additional scans based on the output files of
+        this enumeration.
+
+        :param command:
+        :param service_data:
+        :param patterns:
+        :return:
+        """
+        command = command.format(**service_data)
+        if command in self.commands_ran:
+            return
+
+        text_file_related_parameters = ['-on', 'tee', '-o', '--simple-report']
+        output_file = utils.determine_output_file(command, text_file_related_parameters)
+        if utils.should_run_command(output_file):
+            self.commands_ran.add(command)
+            command = 'sudo ' + command
+            command_printed = f"{Colors.GREEN}{command}{Colors.END}"
+            self.thread_print(command_printed)
+            self.run_command(command)
+            self.thread_print(f"{Colors.MAGENTA}{Colors.BOLD}Command Completed{Colors.END}")
+
+        if output_file is None:
+            return
+
+        self.record_pattern_matches(output_file, patterns, service_data)
+
     def enumerate(self) -> None:
         """
-        Kicks off the primary enumeration process based on scans in the port-scans.toml file in the config folder.
-        Note, once the primary scans are complete, secondary scans occur based on...
-            (1) xml output of primary scans
+        Kicks off the primary enumeration process.
+
+        Note:
+            Primary Scans are based on the service-scans.toml file,
+
+            Secondary Scans are based on the:
+                -xml output of Primary Scans
                         and
-            (2) information in the service-scans.toml file in the config folder.
+                -service-scans.toml in the autohack_config
+
+            Tertiary Scans are based on the:
+                -text output of Secondary Scans
+                        and
+                -service-scans.toml in the autohack_config
+
+        Also Note:
+            Primary Scans --triggers-->
+            Secondary Scans --triggers-->
+            Tertiary Scans --triggers-->
+
         :return:
         """
         port_scan_data = {
@@ -474,8 +523,8 @@ class AutoHack:
             for sub_scan in scan.values():
                 command = sub_scan['command']
                 th = Thread(
-                    target=self.process_enumeration_command,
-                    args=(command, port_scan_data, [], 'primary')
+                    target=self.primary_enumerate,
+                    args=(command, port_scan_data, [])
                 )
                 th.start()
 
