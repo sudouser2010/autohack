@@ -593,12 +593,12 @@ if __name__ == "__main__":
         dest='ports', help='Ports to Scan', default='80'
     )
     parser.add_argument(
-        '-u', '--use_threads', action='store', type=bool,
+        '-u', '--use_threads', action=argparse.BooleanOptionalAction, type=bool,
         dest='use_threads', help='Should Use Threads',
         default=False
     )
     parser.add_argument(
-        '-v', '--verbose', action='store', type=bool,
+        '-v', '--verbose', action=argparse.BooleanOptionalAction, type=bool,
         dest='verbose', help='Run In Verbose Mode',
         default=False
     )
