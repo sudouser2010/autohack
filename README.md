@@ -13,13 +13,13 @@
     ```
 * Run as terminal inside container
   ```
-  docker run -ti -v ${PWD}:/root/repo autohack
+  docker run -it autohack
   ```
 
 * Run AutoHack
 
   ```
-  autohack 
+  autohack -i <some ip address>
   ```
   
 ---  
@@ -32,5 +32,5 @@
     ```
 * Run AutoHack
   ```
-  autohack 
+  autohack -i <some ip address>
   ```
