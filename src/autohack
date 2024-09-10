@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import os
 import re
+import site
 import time
 import shlex
 import argparse
@@ -48,7 +49,7 @@ class Utils:
             f.write('')
 
     @staticmethod
-    def print_time():
+    def print_time() -> None:
         current_time_in_seconds = int(time.time())
         print(f"{Colors.MAGENTA}{Colors.BOLD}CURRENT TIME{Colors.END}: {current_time_in_seconds}")
 
@@ -105,9 +106,9 @@ class Utils:
             return None
 
     @staticmethod
-    def alpha_to_int(text):
+    def alpha_to_int(text) -> Union[int, str]:
         """
-        Casts alpha numeric to an integer
+        Casts alpha-numeric to an integer
         :param text:
         :return:
         """
@@ -116,7 +117,7 @@ class Utils:
         return text
 
     @staticmethod
-    def natural_keys(text):
+    def natural_keys(text) -> List[str]:
         """
         Splits text into fragments and
         attempts to convert each text fragment into an integer
@@ -126,6 +127,10 @@ class Utils:
         """
         return [Utils.alpha_to_int(c) for c in re.split('(\d+)', text)]
 
+    @staticmethod
+    def get_site_packages() -> List[str]:
+        return site.getsitepackages()
+
 
 utils = Utils()
 
@@ -134,7 +139,7 @@ class AutoHack:
     def __init__(
             self, ip_address, output_directory=None, config_directory=None,
             port_scan_type=None, nmap_extra=None, ports=None,
-            use_threads=None
+            use_threads=None, verbose=None,
     ) -> None:
         self.thread_lock = Lock()
         self.address = ip_address
@@ -143,6 +148,7 @@ class AutoHack:
         self.ports = ports
         self.current_working_directory = os.getcwd()
         self.use_threads = use_threads
+        self.verbose = verbose
 
         output_directory = output_directory or os.path.join(
             self.current_working_directory,
@@ -214,14 +220,25 @@ class AutoHack:
             home_directory, '.config', 'autohack_config'
         )
 
+        # define <possible site-packages>/autohack_config
+        site_packages = utils.get_site_packages()
+        site_packages_autohack_directories = [
+            f'{site_package_directory}/autohack_config' for site_package_directory in site_packages
+        ]
+
         possible_config_directories_locations = [
             local_config_directory,
             local_config_directory_when_in_repo,
             global_config_directory
-        ]
+        ] + site_packages_autohack_directories
 
         for prospective_directory in possible_config_directories_locations:
+            if self.verbose:
+                print(f'{Colors.GREEN}Looking For AutoHack Config In: {prospective_directory}{Colors.END}')
+
             if os.path.exists(prospective_directory):
+                if self.verbose:
+                    print(f'{Colors.GREEN}Found AutoHack Config In: {prospective_directory}{Colors.END}\n\n')
                 return prospective_directory
 
         # raise exception when config directory couldn't be found
@@ -580,11 +597,16 @@ if __name__ == "__main__":
         dest='use_threads', help='Should Use Threads',
         default=False
     )
+    parser.add_argument(
+        '-v', '--verbose', action='store', type=bool,
+        dest='verbose', help='Run In Verbose Mode',
+        default=False
+    )
     args = parser.parse_args()
     autohack = AutoHack(
         args.ip_address, args.output_folder, args.config_folder,
         args.port_scan_type, args.nmap_extra, args.ports,
-        args.use_threads,
+        args.use_threads, args.verbose
     )
     utils.print_time()
     autohack.primary_enumerate()
