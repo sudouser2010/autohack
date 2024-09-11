@@ -149,6 +149,7 @@ class AutoHack:
         self.current_working_directory = os.getcwd()
         self.use_threads = use_threads
         self.verbose = verbose
+        self.all_threads = []
 
         output_directory = output_directory or os.path.join(
             self.current_working_directory,
@@ -383,6 +384,23 @@ class AutoHack:
         process = Popen(command, shell=True, stdout=PIPE, stderr=PIPE)
         _, __ = process.communicate()
 
+    def record_thread_reference(self, th):
+        """
+        Stores a reference to a thread so we can keep
+        track of its progress
+        :param th:
+        :return:
+        """
+        self.all_threads.append(th)
+
+    def wait_for_all_threads_to_complete(self):
+        """
+        This blocks execution until all the spawned threads have completed
+        :return:
+        """
+        for th in self.all_threads:
+            th.join()
+
     def execute_secondary_enumerate_command(
             self, command: str,
             service_data: dict,
@@ -410,7 +428,6 @@ class AutoHack:
             self.thread_print(command_printed)
             self.run_command(command)
             self.thread_print(f"{Colors.MAGENTA}{Colors.BOLD}Command Completed{Colors.END}\n")
-            utils.print_time()
 
         if output_file is None:
             return
@@ -489,7 +506,7 @@ class AutoHack:
                 f"[*] {port['portid']}/{port['protocol']}: {service['name']}    ({state['state']})"
             )
             for service_name, scan in self.services_scan_config.items():
-                if type(scan) != dict:
+                if type(scan) is not dict:
                     continue
                 scan_regex_combined = "(" + ")|(".join(scan['service-names']) + ")"
                 match = utils.extract_matching_string(scan_regex_combined, service['name'])
@@ -511,6 +528,7 @@ class AutoHack:
                             args=(command, service_scan_data, patterns)
                         )
                         th.start()
+                        self.record_thread_reference(th)
                     else:
                         self.execute_secondary_enumerate_command(
                             command, service_scan_data, patterns
@@ -539,6 +557,7 @@ class AutoHack:
                         args=(command, port_scan_data)
                     )
                     th.start()
+                    self.record_thread_reference(th)
                 else:
                     self.execute_primary_enumerate_command(
                         command, port_scan_data
@@ -604,3 +623,6 @@ if __name__ == "__main__":
     )
     utils.print_time()
     autohack.primary_enumerate()
+    autohack.wait_for_all_threads_to_complete()
+    utils.print_time()
+    print('\nAutoHack Complete')
