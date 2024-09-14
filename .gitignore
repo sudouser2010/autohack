@@ -2,6 +2,7 @@
 *.pyc
 dev/
 results/
+portal/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

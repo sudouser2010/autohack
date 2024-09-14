@@ -15,6 +15,11 @@
   ```
   docker run -it autohack
   ```
+  
+* Run as terminal inside container and mount local folder called portal
+  ```
+  docker run -ti -v ${PWD}/portal:/root/portal autohack 
+  ```
 
 * Run AutoHack
 

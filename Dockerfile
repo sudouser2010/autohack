@@ -39,3 +39,5 @@ RUN /root/miniconda3/envs/autohack/bin/pip install autohack==0.12 --root-user-ac
 
 # Activate AutoHack Conda On Container Start
 RUN echo "source activate autohack" > ~/.bashrc
+
+WORKDIR /root/portal
