@@ -551,17 +551,9 @@ class AutoHack:
         for scan_name, scan in self.port_scan_config[self.port_scan_type].items():
             for sub_scan in scan.values():
                 command = sub_scan['command']
-                if self.use_threads:
-                    th = Thread(
-                        target=self.execute_primary_enumerate_command,
-                        args=(command, port_scan_data)
-                    )
-                    th.start()
-                    self.record_thread_reference(th)
-                else:
-                    self.execute_primary_enumerate_command(
-                        command, port_scan_data
-                    )
+                self.execute_primary_enumerate_command(
+                    command, port_scan_data
+                )
 
 
 if __name__ == "__main__":
