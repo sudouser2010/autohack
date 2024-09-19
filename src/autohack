@@ -139,7 +139,7 @@ class AutoHack:
     def __init__(
             self, ip_address, output_directory=None, config_directory=None,
             port_scan_type=None, nmap_extra=None, ports=None,
-            use_threads=None, verbose=None,
+            use_threads=None, verbose=None, command_timeout=None
     ) -> None:
         self.thread_lock = Lock()
         self.address = ip_address
@@ -149,6 +149,7 @@ class AutoHack:
         self.current_working_directory = os.getcwd()
         self.use_threads = use_threads
         self.verbose = verbose
+        self.command_timeout = command_timeout
         self.all_threads = []
 
         output_directory = output_directory or os.path.join(
@@ -607,11 +608,16 @@ if __name__ == "__main__":
         dest='verbose', help='Run In Verbose Mode',
         default=False
     )
+    parser.add_argument(
+        '-ct', '--command_timeout', action='store', type=int,
+        dest='command_timeout', help='Max Seconds Command Runs Before Being Killed',
+        default=1800
+    )
     args = parser.parse_args()
     autohack = AutoHack(
         args.ip_address, args.output_folder, args.config_folder,
         args.port_scan_type, args.nmap_extra, args.ports,
-        args.use_threads, args.verbose
+        args.use_threads, args.verbose, args.command_timeout
     )
     utils.print_time()
     autohack.primary_enumerate()
