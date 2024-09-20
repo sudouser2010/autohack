@@ -5,6 +5,7 @@ import site
 import time
 import shlex
 import argparse
+from dataclasses import dataclass
 from subprocess import Popen, PIPE
 from typing import List, Dict, Union
 from threading import Thread, Lock, current_thread
@@ -130,6 +131,14 @@ class Utils:
     @staticmethod
     def get_site_packages() -> List[str]:
         return site.getsitepackages()
+
+
+@dataclass
+class ThreadReference:
+    """keeps track of useful thread data."""
+    command: str
+    kill_after_time: int
+    thread_object: int = Thread
 
 
 utils = Utils()
@@ -385,14 +394,23 @@ class AutoHack:
         process = Popen(command, shell=True, stdout=PIPE, stderr=PIPE)
         _, __ = process.communicate()
 
-    def record_thread_reference(self, th):
+    def record_thread_reference(self, command, th):
         """
         Stores a reference to a thread so we can keep
         track of its progress
-        :param th:
+
+        :param command: command being run in thread
+        :param th: thread object
         :return:
         """
-        self.all_threads.append(th)
+
+        kill_after_time = int(time.time()) + self.command_timeout
+        thread_reference = ThreadReference(
+            command=command,
+            kill_after_time=kill_after_time,
+            thread_object=th
+        )
+        self.all_threads.append(thread_reference)
 
     def wait_for_all_threads_to_complete(self):
         """
@@ -400,7 +418,7 @@ class AutoHack:
         :return:
         """
         for th in self.all_threads:
-            th.join()
+            th.thread_object.join()
 
     def execute_secondary_enumerate_command(
             self, command: str,
@@ -529,7 +547,7 @@ class AutoHack:
                             args=(command, service_scan_data, patterns)
                         )
                         th.start()
-                        self.record_thread_reference(th)
+                        self.record_thread_reference(command, th)
                     else:
                         self.execute_secondary_enumerate_command(
                             command, service_scan_data, patterns
