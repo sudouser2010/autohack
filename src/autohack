@@ -6,9 +6,11 @@ import time
 import shlex
 import argparse
 from dataclasses import dataclass
+from multiprocessing import Lock
+from multiprocessing import Process
+from multiprocessing import current_process
 from subprocess import Popen, PIPE
 from typing import List, Dict, Union
-from threading import Thread, Lock, current_thread
 
 
 import toml
@@ -134,11 +136,11 @@ class Utils:
 
 
 @dataclass
-class ThreadReference:
-    """keeps track of useful thread data."""
+class ProcessReference:
+    """keeps track of useful process data."""
     command: str
     kill_after_time: int
-    thread_object: int = Thread
+    process_object: Process
 
 
 utils = Utils()
@@ -148,18 +150,18 @@ class AutoHack:
     def __init__(
             self, ip_address, output_directory=None, config_directory=None,
             port_scan_type=None, nmap_extra=None, ports=None,
-            use_threads=None, verbose=None, command_timeout=None
+            use_processes=None, verbose=None, command_timeout=None
     ) -> None:
-        self.thread_lock = Lock()
+        self.process_lock = Lock()
         self.address = ip_address
         self.port_scan_type = port_scan_type
         self.nmap_extra = nmap_extra
         self.ports = ports
         self.current_working_directory = os.getcwd()
-        self.use_threads = use_threads
+        self.use_processes = use_processes
         self.verbose = verbose
         self.command_timeout = command_timeout
-        self.all_threads = []
+        self.all_processes = []
 
         output_directory = output_directory or os.path.join(
             self.current_working_directory,
@@ -251,25 +253,25 @@ class AutoHack:
 
     def print(self, _str: str) -> None:
         """
-        Locks thread, prints, and releases thread
+        Locks process, prints, and releases process
         so that printing output appears in the correct order
         :param _str:
         :return:
         """
-        self.thread_lock.acquire()
+        self.process_lock.acquire()
         print(_str)
-        self.thread_lock.release()
+        self.process_lock.release()
 
-    def thread_print(self, _str: str) -> None:
+    def process_print(self, _str: str) -> None:
         """
-        Prints while prepending the thread id
+        Prints while prepending the process id
         so it's more obvious where message came from
         :param _str:
         :return:
         """
-        if self.use_threads:
-            thread_id = current_thread().native_id
-            _str = f"{Colors.CYAN}{Colors.BOLD}Thread {thread_id}:{Colors.END} {_str}"
+        if self.use_processes:
+            process_id = current_process().pid
+            _str = f"{Colors.CYAN}{Colors.BOLD}Process {process_id}:{Colors.END} {_str}"
         self.print(_str)
 
     def log_command(self, command: str) -> None:
@@ -278,12 +280,12 @@ class AutoHack:
         :param command:
         :return:
         """
-        thread_id = current_thread().native_id
-        command = f"[*] (Thread {thread_id}) {command}\n\n"
-        self.thread_lock.acquire()
+        process_id = current_process().pid
+        command = f"[*] (Process {process_id}) {command}\n\n"
+        self.process_lock.acquire()
         with open(self.commands_run_log, 'a') as f:
             f.write(command)
-        self.thread_lock.release()
+        self.process_lock.release()
 
     def log_detected_services(self) -> None:
         """
@@ -294,10 +296,10 @@ class AutoHack:
         detected_services_list.sort(key=utils.natural_keys)
 
         with open(self.detected_services_log, 'w') as f:
-            self.thread_lock.acquire()
+            self.process_lock.acquire()
             for detected_service in detected_services_list:
                 f.write(f"{detected_service}\n")
-            self.thread_lock.release()
+            self.process_lock.release()
 
     def log_manual_steps(self, manual_scans: List[Dict], service_scan_data: Dict) -> None:
         """
@@ -307,7 +309,7 @@ class AutoHack:
         :return:
         """
         with open(self.manual_steps_log, 'a') as f:
-            self.thread_lock.acquire()
+            self.process_lock.acquire()
             for sub_scan in manual_scans:
                 message = f"[*] {sub_scan['description']}\n"
                 wrote_command = False
@@ -321,7 +323,7 @@ class AutoHack:
                     message += f"\t{command}\n"
                 if wrote_command:
                     f.write(f"{message}\n\n")
-            self.thread_lock.release()
+            self.process_lock.release()
 
     def record_pattern_matches(self, output_file: str, patterns: List[dict], service_data: dict) -> None:
         """
@@ -367,7 +369,7 @@ class AutoHack:
 
         pattern_description_shown = set()
 
-        self.thread_lock.acquire()
+        self.process_lock.acquire()
         with open(self.patterns_detected_log, 'w') as f:
             for output_file in self.pattern_matches:
                 unrepeated_pattern_present = False
@@ -382,7 +384,7 @@ class AutoHack:
 
                 if unrepeated_pattern_present:
                     f.write(message)
-        self.thread_lock.release()
+        self.process_lock.release()
 
     def run_command(self, command: str) -> None:
         """
@@ -394,31 +396,31 @@ class AutoHack:
         process = Popen(command, shell=True, stdout=PIPE, stderr=PIPE)
         _, __ = process.communicate()
 
-    def record_thread_reference(self, command, th):
+    def record_process_reference(self, command, pr):
         """
-        Stores a reference to a thread so we can keep
+        Stores a reference to a process so we can keep
         track of its progress
 
-        :param command: command being run in thread
-        :param th: thread object
+        :param command: command being run in process
+        :param pr: process object
         :return:
         """
 
         kill_after_time = int(time.time()) + self.command_timeout
-        thread_reference = ThreadReference(
+        process_reference = ProcessReference(
             command=command,
             kill_after_time=kill_after_time,
-            thread_object=th
+            process_object=pr
         )
-        self.all_threads.append(thread_reference)
+        self.all_processes.append(process_reference)
 
-    def wait_for_all_threads_to_complete(self):
+    def wait_for_all_processes_to_complete(self):
         """
-        This blocks execution until all the spawned threads have completed
+        This blocks execution until all the spawned processes have completed
         :return:
         """
-        for th in self.all_threads:
-            th.thread_object.join()
+        for pr in self.all_processes:
+            pr.process_object.join()
 
     def execute_secondary_enumerate_command(
             self, command: str,
@@ -444,9 +446,9 @@ class AutoHack:
             self.commands_ran.add(command)
             command = 'sudo ' + command
             command_printed = f"SECONDARY ENUMERATE:\n\t{Colors.GREEN}{command}{Colors.END}"
-            self.thread_print(command_printed)
+            self.process_print(command_printed)
             self.run_command(command)
-            self.thread_print(f"{Colors.MAGENTA}{Colors.BOLD}Command Completed{Colors.END}\n")
+            self.process_print(f"{Colors.MAGENTA}{Colors.BOLD}Command Completed{Colors.END}\n")
 
         if output_file is None:
             return
@@ -475,9 +477,9 @@ class AutoHack:
             self.commands_ran.add(command)
             command = 'sudo ' + command
             command_printed = f"PRIMARY ENUMERATE:\n\t{Colors.GREEN}{command}{Colors.END}"
-            self.thread_print(command_printed)
+            self.process_print(command_printed)
             self.run_command(command)
-            self.thread_print(f"{Colors.MAGENTA}{Colors.BOLD}Command Completed{Colors.END}\n")
+            self.process_print(f"{Colors.MAGENTA}{Colors.BOLD}Command Completed{Colors.END}\n")
 
         if output_file is None:
             return
@@ -541,13 +543,13 @@ class AutoHack:
                 for sub_scan in scan['scan']:
                     command = sub_scan['command']
                     patterns = sub_scan.get('pattern', [])
-                    if self.use_threads:
-                        th = Thread(
+                    if self.use_processes:
+                        pr = Process(
                             target=self.execute_secondary_enumerate_command,
                             args=(command, service_scan_data, patterns)
                         )
-                        th.start()
-                        self.record_thread_reference(command, th)
+                        pr.start()
+                        self.record_process_reference(command, pr)
                     else:
                         self.execute_secondary_enumerate_command(
                             command, service_scan_data, patterns
@@ -617,8 +619,8 @@ if __name__ == "__main__":
         dest='ports', help='Ports to Scan', default='80'
     )
     parser.add_argument(
-        '-u', '--use_threads', action=argparse.BooleanOptionalAction, type=bool,
-        dest='use_threads', help='Should Use Threads',
+        '-u', '--use_processes', action=argparse.BooleanOptionalAction, type=bool,
+        dest='use_processes', help='Should Use Processes',
         default=False
     )
     parser.add_argument(
@@ -635,10 +637,10 @@ if __name__ == "__main__":
     autohack = AutoHack(
         args.ip_address, args.output_folder, args.config_folder,
         args.port_scan_type, args.nmap_extra, args.ports,
-        args.use_threads, args.verbose, args.command_timeout
+        args.use_processes, args.verbose, args.command_timeout
     )
     utils.print_time()
     autohack.primary_enumerate()
-    autohack.wait_for_all_threads_to_complete()
+    autohack.wait_for_all_processes_to_complete()
     utils.print_time()
     print('\nAutoHack Complete')
