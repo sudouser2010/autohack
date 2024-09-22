@@ -134,6 +134,19 @@ class Utils:
     def get_site_packages() -> List[str]:
         return site.getsitepackages()
 
+    @staticmethod
+    def process_safe_print(_str: str) -> None:
+        """
+        Locks process, prints, and releases process
+        so that printing output appears in the correct order
+        :param _str:
+        :return:
+        """
+        process_lock = Lock()
+        process_lock.acquire()
+        print(_str)
+        process_lock.release()
+
 
 @dataclass
 class ProcessReference:
@@ -141,21 +154,71 @@ class ProcessReference:
     command: str
     kill_after_time: int
     process_object: Process
+    is_active: bool = True
+
+    def has_timed_out(self) -> bool:
+        current_time_in_seconds = int(time.time())
+        return self.kill_after_time > current_time_in_seconds
 
 
 class ProcessManager:
-    def __init__(self):
+    def __init__(self, verbose: bool, time_between_heart_beats: int):
         self.processes: List[ProcessReference] = []
+        self.should_run = True
+        self.verbose = verbose
+        self.time_between_heart_beats = time_between_heart_beats
+        self.heart_beat_process = Process(
+            target=self.heart_beat,
+        )
 
     def append_process(self, process: ProcessReference) -> None:
         self.processes.append(process)
+
+    def print_active_processes_data(self, active_process: List[ProcessReference]) -> None:
+        current_time = int(time.time())
+
+        message = f'{Colors.MAGENTA}{Colors.BOLD}COMMANDS STILL RUNNING [at {current_time}]:{Colors.END}\n'
+        for process in active_process:
+            minutes_until_killed = (process.kill_after_time - current_time) / 60
+            message += f'\t{Colors.CYAN}{Colors.BOLD}PID:{Colors.END} {process.process_object.pid}\n'
+            message += f'\t{Colors.CYAN}{Colors.BOLD}MINUTES UNTIL KILLED:{Colors.END} {minutes_until_killed}\n'
+
+            if self.verbose:
+                message += f'\t{Colors.CYAN}{Colors.BOLD}COMMAND CALLED:{Colors.END} {process.command}\n'
+
+            # add spaces between each process message
+            message += '\n\n'
+
+        Utils.process_safe_print(message)
+
+    def heart_beat(self) -> None:
+        while self.should_run:
+            time.sleep(self.time_between_heart_beats)
+            active_processes = []
+
+            for process in self.processes:
+
+                # skip non-active processes
+                if not process.is_active:
+                    continue
+
+                if process.has_timed_out():
+                    process.process_object.terminate()
+                    continue
+
+            if active_processes:
+                self.print_active_processes_data(active_processes)
+
+    def run(self):
+        self.heart_beat_process.start()
 
 
 class AutoHack:
     def __init__(
             self, ip_address, output_directory=None, config_directory=None,
             port_scan_type=None, nmap_extra=None, ports=None,
-            use_processes=None, verbose=None, command_timeout=None
+            use_processes=None, verbose=None, command_timeout=None,
+            heart_beat_time=None
     ) -> None:
         self.process_lock = Lock()
         self.address = ip_address
@@ -166,7 +229,11 @@ class AutoHack:
         self.use_processes = use_processes
         self.verbose = verbose
         self.command_timeout = command_timeout
-        self.process_manager = ProcessManager()
+        self.process_manager = ProcessManager(
+            verbose=verbose,
+            time_between_heart_beats=heart_beat_time
+        )
+        self.process_manager.run()
 
         output_directory = output_directory or os.path.join(
             self.current_working_directory,
@@ -574,6 +641,7 @@ class AutoHack:
             'address': self.address,
             'ports': self.ports,
         }
+
         for scan_name, scan in self.port_scan_config[self.port_scan_type].items():
             for sub_scan in scan.values():
                 command = sub_scan['command']
@@ -638,14 +706,21 @@ if __name__ == "__main__":
         dest='command_timeout', help='Max Seconds Command Runs Before Being Killed',
         default=1800
     )
+    parser.add_argument(
+        '-hbt', '--heart_beat_time', action='store', type=int,
+        dest='heart_beat_time', help='Seconds Between Heart Beats',
+        default=60
+    )
     args = parser.parse_args()
     autohack = AutoHack(
         args.ip_address, args.output_folder, args.config_folder,
         args.port_scan_type, args.nmap_extra, args.ports,
-        args.use_processes, args.verbose, args.command_timeout
+        args.use_processes, args.verbose, args.command_timeout,
+        args.heart_beat_time
     )
     Utils.print_time()
     autohack.primary_enumerate()
     autohack.wait_for_all_processes_to_complete()
+    autohack.process_manager.heart_beat_process.terminate()
     Utils.print_time()
     print('\nAutoHack Complete')
