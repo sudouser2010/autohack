@@ -143,6 +143,14 @@ class ProcessReference:
     process_object: Process
 
 
+class ProcessManager:
+    def __init__(self):
+        self.processes: List[ProcessReference] = []
+
+    def append_process(self, process: ProcessReference) -> None:
+        self.processes.append(process)
+
+
 class AutoHack:
     def __init__(
             self, ip_address, output_directory=None, config_directory=None,
@@ -158,7 +166,7 @@ class AutoHack:
         self.use_processes = use_processes
         self.verbose = verbose
         self.command_timeout = command_timeout
-        self.all_processes = []
+        self.process_manager = ProcessManager()
 
         output_directory = output_directory or os.path.join(
             self.current_working_directory,
@@ -409,14 +417,14 @@ class AutoHack:
             kill_after_time=kill_after_time,
             process_object=pr
         )
-        self.all_processes.append(process_reference)
+        self.process_manager.append_process(process_reference)
 
     def wait_for_all_processes_to_complete(self):
         """
         This blocks execution until all the spawned processes have completed
         :return:
         """
-        for pr in self.all_processes:
+        for pr in self.process_manager.processes:
             pr.process_object.join()
 
     def execute_secondary_enumerate_command(
