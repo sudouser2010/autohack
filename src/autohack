@@ -143,9 +143,6 @@ class ProcessReference:
     process_object: Process
 
 
-utils = Utils()
-
-
 class AutoHack:
     def __init__(
             self, ip_address, output_directory=None, config_directory=None,
@@ -173,11 +170,11 @@ class AutoHack:
         universal_pattern_config_file = os.path.join(config_directory, 'universal-patterns.toml')
 
         if not os.path.isfile(port_scan_config_file):
-            raise utils.AutoHackException(f'Can Not Find Port Scan Config File inside: {config_directory} Directory')
+            raise Utils.AutoHackException(f'Can Not Find Port Scan Config File inside: {config_directory} Directory')
         if not os.path.isfile(services_scan_config_file):
-            raise utils.AutoHackException(f'Can Not Find Services Scan Config File: {config_directory} Directory')
+            raise Utils.AutoHackException(f'Can Not Find Services Scan Config File: {config_directory} Directory')
         if not os.path.isfile(universal_pattern_config_file):
-            raise utils.AutoHackException(f'Can Not Find Universal Pattern Config File: {config_directory} Directory')
+            raise Utils.AutoHackException(f'Can Not Find Universal Pattern Config File: {config_directory} Directory')
 
         self.port_scan_config = toml.load(port_scan_config_file)
         self.services_scan_config = toml.load(services_scan_config_file)
@@ -189,7 +186,7 @@ class AutoHack:
         exploit_directory = os.path.join(output_directory, 'exploit')
         priv_directory = os.path.join(output_directory, 'priv')
         loot_directory = os.path.join(output_directory, 'loot')
-        utils.make_directories(
+        Utils.make_directories(
             self.scan_directory, xml_directory, log_directory,
             exploit_directory, priv_directory, loot_directory
         )
@@ -202,7 +199,7 @@ class AutoHack:
         self.detected_services_log = os.path.join(log_directory, 'detected_services.log')
         self.manual_steps_log = os.path.join(log_directory, 'manual_steps.log')
         self.patterns_detected_log = os.path.join(log_directory, 'patterns.log')
-        utils.clear_file(self.manual_steps_log)
+        Utils.clear_file(self.manual_steps_log)
 
     def get_config(self, config_directory: str):
         """
@@ -229,7 +226,7 @@ class AutoHack:
         )
 
         # define <possible site-packages>/autohack_config
-        site_packages = utils.get_site_packages()
+        site_packages = Utils.get_site_packages()
         site_packages_autohack_directories = [
             f'{site_package_directory}/autohack_config' for site_package_directory in site_packages
         ]
@@ -249,7 +246,7 @@ class AutoHack:
                 return prospective_directory
 
         # raise exception when config directory couldn't be found
-        raise utils.AutoHackException('Can Not Find Config Directory')
+        raise Utils.AutoHackException('Can Not Find Config Directory')
 
     def print(self, _str: str) -> None:
         """
@@ -293,7 +290,7 @@ class AutoHack:
         :return:
         """
         detected_services_list = list(self.detected_services)
-        detected_services_list.sort(key=utils.natural_keys)
+        detected_services_list.sort(key=Utils.natural_keys)
 
         with open(self.detected_services_log, 'w') as f:
             self.process_lock.acquire()
@@ -350,7 +347,7 @@ class AutoHack:
                 for pattern in patterns_to_search:
                     description = pattern['description']
                     pattern_regex = pattern['pattern'].lower()
-                    match = utils.extract_matching_string(pattern_regex, line)
+                    match = Utils.extract_matching_string(pattern_regex, line)
                     if match:
                         description = description.format(**service_data, match=match)
                         if output_file in self.pattern_matches:
@@ -441,8 +438,8 @@ class AutoHack:
             return
 
         text_file_related_parameters = ['-on', 'tee', '-o', '--simple-report']
-        output_file = utils.determine_output_file(command, text_file_related_parameters)
-        if utils.should_run_command(output_file):
+        output_file = Utils.determine_output_file(command, text_file_related_parameters)
+        if Utils.should_run_command(output_file):
             self.commands_ran.add(command)
             command = 'sudo ' + command
             command_printed = f"SECONDARY ENUMERATE:\n\t{Colors.GREEN}{command}{Colors.END}"
@@ -472,8 +469,8 @@ class AutoHack:
             return
 
         xml_file_related_parameters = ['-ox']
-        output_file = utils.determine_output_file(command, xml_file_related_parameters)
-        if utils.should_run_command(output_file):
+        output_file = Utils.determine_output_file(command, xml_file_related_parameters)
+        if Utils.should_run_command(output_file):
             self.commands_ran.add(command)
             command = 'sudo ' + command
             command_printed = f"PRIMARY ENUMERATE:\n\t{Colors.GREEN}{command}{Colors.END}"
@@ -530,7 +527,7 @@ class AutoHack:
                 if type(scan) is not dict:
                     continue
                 scan_regex_combined = "(" + ")|(".join(scan['service-names']) + ")"
-                match = utils.extract_matching_string(scan_regex_combined, service['name'])
+                match = Utils.extract_matching_string(scan_regex_combined, service['name'])
                 if match is None:
                     continue
 
@@ -639,8 +636,8 @@ if __name__ == "__main__":
         args.port_scan_type, args.nmap_extra, args.ports,
         args.use_processes, args.verbose, args.command_timeout
     )
-    utils.print_time()
+    Utils.print_time()
     autohack.primary_enumerate()
     autohack.wait_for_all_processes_to_complete()
-    utils.print_time()
+    Utils.print_time()
     print('\nAutoHack Complete')
