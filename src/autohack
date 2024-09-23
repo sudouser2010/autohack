@@ -10,6 +10,7 @@ from multiprocessing import Lock
 from multiprocessing import Process
 from multiprocessing import current_process
 from subprocess import Popen, PIPE
+from threading import Thread
 from typing import List, Dict, Union
 
 
@@ -154,11 +155,11 @@ class ProcessReference:
     command: str
     kill_after_time: int
     process_object: Process
-    is_active: bool = True
+    is_active: bool
 
     def has_timed_out(self) -> bool:
         current_time_in_seconds = int(time.time())
-        return self.kill_after_time > current_time_in_seconds
+        return current_time_in_seconds >= self.kill_after_time
 
 
 class ProcessManager:
@@ -167,7 +168,7 @@ class ProcessManager:
         self.should_run = True
         self.verbose = verbose
         self.time_between_heart_beats = time_between_heart_beats
-        self.heart_beat_process = Process(
+        self.heart_beat_process = Thread(
             target=self.heart_beat,
         )
 
@@ -204,7 +205,10 @@ class ProcessManager:
 
                 if process.has_timed_out():
                     process.process_object.terminate()
+                    process.is_active = False
                     continue
+
+                active_processes.append(process)
 
             if active_processes:
                 self.print_active_processes_data(active_processes)
@@ -482,7 +486,8 @@ class AutoHack:
         process_reference = ProcessReference(
             command=command,
             kill_after_time=kill_after_time,
-            process_object=pr
+            process_object=pr,
+            is_active=True,
         )
         self.process_manager.append_process(process_reference)
 
@@ -721,6 +726,6 @@ if __name__ == "__main__":
     Utils.print_time()
     autohack.primary_enumerate()
     autohack.wait_for_all_processes_to_complete()
-    autohack.process_manager.heart_beat_process.terminate()
+    # autohack.process_manager.heart_beat_process.terminate()
     Utils.print_time()
     print('\nAutoHack Complete')
