@@ -189,7 +189,6 @@ class ProcessReference:
 class ProcessManager:
     def __init__(self, verbose: bool, time_between_heart_beats: int):
         self.processes: List[ProcessReference] = []
-        self.should_run = True
         self.verbose = verbose
         self.time_between_heart_beats = time_between_heart_beats
         self.heart_beat_process = Thread(
@@ -209,7 +208,7 @@ class ProcessManager:
             message += f'\t{Colors.CYAN}{Colors.BOLD}PID:{Colors.END} {process.process_object.pid}\n'
             chart = Utils.get_chart(
                 value=seconds_until_timeout,
-                max_value=self.time_between_heart_beats
+                max_value=AutoHack.command_timeout
             )
             message += f'\t{Colors.CYAN}{Colors.BOLD}SECONDS UNTIL TIMEOUT:{Colors.END} {chart}\n'
 
@@ -222,7 +221,7 @@ class ProcessManager:
         Utils.process_safe_print(message)
 
     def heart_beat(self) -> None:
-        while self.should_run:
+        while True:
             time.sleep(self.time_between_heart_beats)
             active_processes = []
 
@@ -245,17 +244,27 @@ class ProcessManager:
             if active_processes:
                 self.print_active_processes_data(active_processes)
 
+            # kill heart_beat once primary and secondary enumeration is complete
+            should_kill_heart_beat = AutoHack.primary_enumeration_is_complete and len(active_processes) == 0
+
+            if should_kill_heart_beat:
+                break
+
     def run(self):
         self.heart_beat_process.start()
 
 
 class AutoHack:
+    primary_enumeration_is_complete = False
+    command_timeout = 0
+
     def __init__(
             self, ip_address, output_directory=None, config_directory=None,
             port_scan_type=None, nmap_extra=None, ports=None,
             use_processes=None, verbose=None, command_timeout=None,
             heart_beat_time=None
     ) -> None:
+        AutoHack.command_timeout = command_timeout
         self.process_lock = Lock()
         self.address = ip_address
         self.port_scan_type = port_scan_type
@@ -264,7 +273,6 @@ class AutoHack:
         self.current_working_directory = os.getcwd()
         self.use_processes = use_processes
         self.verbose = verbose
-        self.command_timeout = command_timeout
         self.process_manager = ProcessManager(
             verbose=verbose,
             time_between_heart_beats=heart_beat_time
@@ -688,6 +696,7 @@ class AutoHack:
                 self.execute_primary_enumerate_command(
                     command, port_scan_data
                 )
+        AutoHack.primary_enumeration_is_complete = True
 
 
 if __name__ == "__main__":
@@ -761,6 +770,4 @@ if __name__ == "__main__":
     Utils.print_time()
     autohack.primary_enumerate()
     autohack.wait_for_all_jobs_to_complete()
-    # autohack.process_manager.heart_beat_process.terminate()
-    Utils.print_time()
     print('\nAutoHack Complete')
