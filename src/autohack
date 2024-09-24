@@ -22,6 +22,7 @@ class Colors:
     CYAN = '\033[96m'
     GREEN = '\033[92m'
     MAGENTA = '\033[95m'
+    RED = '\033[91m'
     END = '\033[0m'
     BOLD = '\033[1m'
 
@@ -178,17 +179,18 @@ class ProcessManager:
     def print_active_processes_data(self, active_process: List[ProcessReference]) -> None:
         current_time = int(time.time())
 
-        message = f'{Colors.MAGENTA}{Colors.BOLD}COMMANDS STILL RUNNING [at {current_time}]:{Colors.END}\n'
+        message = f'\n{Colors.MAGENTA}{Colors.BOLD}COMMANDS STILL RUNNING [at {current_time}]:{Colors.END}\n'
         for process in active_process:
-            minutes_until_killed = (process.kill_after_time - current_time) / 60
+            minutes_until_timeout = (process.kill_after_time - current_time) / 60
+            minutes_until_timeout = round(minutes_until_timeout, 3)
             message += f'\t{Colors.CYAN}{Colors.BOLD}PID:{Colors.END} {process.process_object.pid}\n'
-            message += f'\t{Colors.CYAN}{Colors.BOLD}MINUTES UNTIL KILLED:{Colors.END} {minutes_until_killed}\n'
+            message += f'\t{Colors.CYAN}{Colors.BOLD}MINUTES UNTIL TIMEOUT:{Colors.END} {minutes_until_timeout}\n'
 
             if self.verbose:
                 message += f'\t{Colors.CYAN}{Colors.BOLD}COMMAND CALLED:{Colors.END} {process.command}\n'
 
             # add spaces between each process message
-            message += '\n\n'
+            message += '\n'
 
         Utils.process_safe_print(message)
 
@@ -206,6 +208,9 @@ class ProcessManager:
                 if process.has_timed_out():
                     process.process_object.terminate()
                     process.is_active = False
+                    message = (f'\n{Colors.RED}{Colors.BOLD}KILLING PROCESS DUE TO TIMEOUT: '
+                               f'PID:{process.process_object.pid}{Colors.END}\n')
+                    Utils.process_safe_print(message)
                     continue
 
                 active_processes.append(process)
@@ -491,13 +496,16 @@ class AutoHack:
         )
         self.process_manager.append_process(process_reference)
 
-    def wait_for_all_processes_to_complete(self):
+    def wait_for_all_jobs_to_complete(self):
         """
-        This blocks execution until all the spawned processes have completed
+        This blocks execution until all the spawned processes and threads have completed
         :return:
         """
         for pr in self.process_manager.processes:
             pr.process_object.join()
+
+        # let heart beat thread complete after process
+        self.process_manager.heart_beat_process.join()
 
     def execute_secondary_enumerate_command(
             self, command: str,
@@ -725,7 +733,7 @@ if __name__ == "__main__":
     )
     Utils.print_time()
     autohack.primary_enumerate()
-    autohack.wait_for_all_processes_to_complete()
+    autohack.wait_for_all_jobs_to_complete()
     # autohack.process_manager.heart_beat_process.terminate()
     Utils.print_time()
     print('\nAutoHack Complete')
