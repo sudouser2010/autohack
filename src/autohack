@@ -149,6 +149,29 @@ class Utils:
         print(_str)
         process_lock.release()
 
+    @staticmethod
+    def get_chart(value, max_value, size=30, unit='seconds'):
+        """
+        Renders chart based on input values
+
+        :param value:
+        :param max_value:
+        :param size:
+        :return:
+        """
+        if value > max_value:
+            value = max_value
+        elif value < 0:
+            value = 0
+
+        scaled_value = int(value / max_value * size)
+        tick_marks = '▯' * scaled_value
+        non_tick_marks = ' ' * (size - scaled_value)
+        chart = (f'|{Colors.GREEN}{Colors.BOLD}{tick_marks}{Colors.END}'
+                 f'{Colors.CYAN}({value} {unit}){Colors.END}'
+                 f'{non_tick_marks}|{Colors.CYAN}({max_value} {unit}){Colors.END}')
+        return chart
+
 
 @dataclass
 class ProcessReference:
@@ -181,10 +204,14 @@ class ProcessManager:
 
         message = f'\n{Colors.MAGENTA}{Colors.BOLD}COMMANDS STILL RUNNING [at {current_time}]:{Colors.END}\n'
         for process in active_process:
-            minutes_until_timeout = (process.kill_after_time - current_time) / 60
-            minutes_until_timeout = round(minutes_until_timeout, 3)
+            seconds_until_timeout = int(process.kill_after_time - current_time)
+
             message += f'\t{Colors.CYAN}{Colors.BOLD}PID:{Colors.END} {process.process_object.pid}\n'
-            message += f'\t{Colors.CYAN}{Colors.BOLD}MINUTES UNTIL TIMEOUT:{Colors.END} {minutes_until_timeout}\n'
+            chart = Utils.get_chart(
+                value=seconds_until_timeout,
+                max_value=self.time_between_heart_beats
+            )
+            message += f'\t{Colors.CYAN}{Colors.BOLD}SECONDS UNTIL TIMEOUT:{Colors.END} {chart}\n'
 
             if self.verbose:
                 message += f'\t{Colors.CYAN}{Colors.BOLD}COMMAND CALLED:{Colors.END} {process.command}\n'
