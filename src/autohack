@@ -59,7 +59,10 @@ class Utils:
         print(f"{Colors.MAGENTA}{Colors.BOLD}CURRENT TIME{Colors.END}: {current_time_in_seconds}")
 
     @staticmethod
-    def determine_output_file(command: str, options_associated_with_output_file: List[str]) -> Union[str, None]:
+    def determine_output_file(
+            command: str,
+            options_associated_with_output_file: List[str]
+    ) -> Union[str, None]:
         """
         Parses command for output file and returns...
             (1) the output file if determined
@@ -130,7 +133,7 @@ class Utils:
         :param text:
         :return:
         """
-        return [Utils.alpha_to_int(c) for c in re.split('(\d+)', text)]
+        return [Utils.alpha_to_int(c) for c in re.split('(\\d+)', text)]
 
     @staticmethod
     def get_site_packages() -> List[str]:

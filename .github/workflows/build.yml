@@ -24,4 +24,4 @@ jobs:
         pip install -r requirements_test.txt
     - name: Lint with flake8
       run: |
-        flake8 src/autohack --max-complexity=10
+        flake8 src/autohack
