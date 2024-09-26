@@ -25,3 +25,6 @@ jobs:
     - name: Lint with flake8
       run: |
         flake8 src/autohack
+    - name: Run testcases
+      run: |
+        pytest .
