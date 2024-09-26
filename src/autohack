@@ -160,6 +160,7 @@ class Utils:
         :param value:
         :param max_value:
         :param size:
+        :param unit:
         :return:
         """
         if value > max_value:
