@@ -12,7 +12,7 @@
   Command above does the following:
   * creates Docker container based on the [AutoHack image](https://registry.hub.docker.com/r/hdizzle/autohack)
   * mounts a folder named `portal` in current directory
-    * this allows us to persists the AutoHack results once the <br>container is destroyed
+    * this allows us to persist the AutoHack results once the <br>container is destroyed
   * allows us to access the terminal of the AutoHack container
 
 * Run AutoHack
