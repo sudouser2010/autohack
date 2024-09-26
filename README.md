@@ -4,22 +4,16 @@
 ## This package does automated vulnerability enumeration and recommends exploits.<br><br>
 
 ### How to Run on Non Kali-Linux Operating System (Recommended)
-* Clone repo
-* cd into repo
-* Build image
 
-    ```
-    docker build -t autohack .
-    ```
-* Run as terminal inside container
+* Create AutoHack Docker container
   ```
-  docker run -it autohack
+  docker run -ti -v ${PWD}/portal:/root/portal hdizzle/autohack 
   ```
-  
-* Run as terminal inside container and mount local folder called portal
-  ```
-  docker run -ti -v ${PWD}/portal:/root/portal autohack 
-  ```
+  Command above does the following:
+  * creates Docker container based on the [AutoHack image](https://registry.hub.docker.com/r/hdizzle/autohack)
+  * mounts a folder named `portal` in current directory
+    * this allows us to persists the AutoHack results once the <br>container is destroyed
+  * allows us to access the terminal of the AutoHack container
 
 * Run AutoHack
 
