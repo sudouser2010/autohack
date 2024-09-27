@@ -140,6 +140,14 @@ class Utils:
         return site.getsitepackages()
 
     @staticmethod
+    def get_lock():
+        """
+        Returns the processing lock
+        :return:
+        """
+        return Lock()
+
+    @staticmethod
     def process_safe_print(_str: str) -> None:
         """
         Locks process, prints, and releases process
@@ -147,7 +155,7 @@ class Utils:
         :param _str:
         :return:
         """
-        process_lock = Lock()
+        process_lock = Utils.get_lock()
         process_lock.acquire()
         print(_str)
         process_lock.release()
@@ -269,7 +277,7 @@ class AutoHack:
             heart_beat_time=None
     ) -> None:
         AutoHack.command_timeout = command_timeout
-        self.process_lock = Lock()
+        self.process_lock = Utils.get_lock()
         self.address = ip_address
         self.port_scan_type = port_scan_type
         self.nmap_extra = nmap_extra
