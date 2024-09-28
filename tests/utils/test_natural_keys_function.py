@@ -15,7 +15,7 @@ def test_natural_keys():
         ['', 2, 'Paclives'],
     ]
     for i in range(len(input_examples)):
-        assert autohack.Utils.natsural_keys(
+        assert autohack.Utils.natural_keys(
             input_examples[i]
         ) == expected_outputs[i]
 
