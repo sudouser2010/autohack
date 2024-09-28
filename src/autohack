@@ -197,13 +197,19 @@ class ProcessReference:
 
 
 class ProcessManager:
-    def __init__(self, verbose: bool, time_between_heart_beats: int):
+    def __init__(
+        self,
+        verbose: bool,
+        time_between_heart_beats: int,
+        retry_max: int
+    ):
         self.processes: List[ProcessReference] = []
         self.verbose = verbose
         self.time_between_heart_beats = time_between_heart_beats
         self.heart_beat_process = Thread(
             target=self.heart_beat,
         )
+        self.retry_max = retry_max
 
     def append_process(self, process: ProcessReference) -> None:
         self.processes.append(process)
@@ -269,10 +275,10 @@ class AutoHack:
     command_timeout = 0
 
     def __init__(
-            self, ip_address, output_directory=None, config_directory=None,
-            port_scan_type=None, nmap_extra=None, ports=None,
-            use_processes=None, verbose=None, command_timeout=None,
-            heart_beat_time=None
+        self, ip_address, output_directory=None, config_directory=None,
+        port_scan_type=None, nmap_extra=None, ports=None,
+        use_processes=None, verbose=None, command_timeout=None,
+        heart_beat_time=None, retry_max=None
     ) -> None:
         AutoHack.command_timeout = command_timeout
         self.process_lock = Utils.get_lock()
@@ -285,7 +291,8 @@ class AutoHack:
         self.verbose = verbose
         self.process_manager = ProcessManager(
             verbose=verbose,
-            time_between_heart_beats=heart_beat_time
+            time_between_heart_beats=heart_beat_time,
+            retry_max=retry_max
         )
         self.process_manager.run()
 
@@ -766,16 +773,28 @@ if __name__ == "__main__":
         default=1800
     )
     parser.add_argument(
+        '-r', '--retry_max', action='store', type=int,
+        dest='retry_max', help='Max Number of Times To Retry A Command',
+        default=1
+    )
+    parser.add_argument(
         '-hbt', '--heart_beat_time', action='store', type=int,
         dest='heart_beat_time', help='Seconds Between Heart Beats',
         default=60
     )
     args = parser.parse_args()
     autohack = AutoHack(
-        args.ip_address, args.output_folder, args.config_folder,
-        args.port_scan_type, args.nmap_extra, args.ports,
-        args.use_processes, args.verbose, args.command_timeout,
-        args.heart_beat_time
+        ip_address=args.ip_address,
+        output_directory=args.output_folder,
+        config_directory=args.config_folder,
+        port_scan_type=args.port_scan_type,
+        nmap_extra=args.nmap_extra,
+        ports=args.ports,
+        use_processes=args.use_processes,
+        verbose=args.verbose,
+        command_timeout=args.command_timeout,
+        heart_beat_time=args.heart_beat_time,
+        retry_max=args.retry_max,
     )
     Utils.print_time()
     autohack.primary_enumerate()
