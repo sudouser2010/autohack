@@ -125,11 +125,9 @@ class Utils:
         return text
 
     @staticmethod
-    def natural_keys(text) -> List[str]:
+    def natural_keys(text: str) -> List[str]:
         """
-        Splits text into fragments and
-        attempts to convert each text fragment into an integer
-        example... natural_keys('["hello2world"') = ['hello', '2', 'world']
+        Split text into fragments so it can be naturally sorted.
         :param text:
         :return:
         """
@@ -161,7 +159,7 @@ class Utils:
         process_lock.release()
 
     @staticmethod
-    def get_chart(value, max_value, size=30, unit='seconds'):
+    def get_chart(value, max_value, size=30, unit='seconds') -> str:
         """
         Renders chart based on input values
 
