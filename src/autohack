@@ -826,8 +826,8 @@ if __name__ == "__main__":
         dest='ports', help='Ports to Scan', default='80'
     )
     parser.add_argument(
-        '-u', '--use_processes', action=argparse.BooleanOptionalAction, type=bool,
-        dest='use_processes', help='Should Use Processes',
+        '--no_processes', action=argparse.BooleanOptionalAction, type=bool,
+        dest='no_processes', help='Should Not Use Processes For Secondary Enumeration',
         default=False
     )
     parser.add_argument(
@@ -858,7 +858,7 @@ if __name__ == "__main__":
         port_scan_type=args.port_scan_type,
         nmap_extra=args.nmap_extra,
         ports=args.ports,
-        use_processes=args.use_processes,
+        use_processes=not args.no_processes,
         verbose=args.verbose,
         command_timeout=args.command_timeout,
         heart_beat_time=args.heart_beat_time,
