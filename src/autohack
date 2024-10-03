@@ -729,7 +729,7 @@ class AutoHack:
                         target = self.execute_secondary_enumerate_command
                         arguments = (command, service_scan_data, patterns)
 
-                        pr = Process(target=target,args=arguments)
+                        pr = Process(target=target, args=arguments)
                         pr.start()
 
                         self.record_process_reference(
