@@ -11,8 +11,7 @@ from multiprocessing import Process
 from multiprocessing import current_process
 from subprocess import Popen, PIPE
 from threading import Thread
-from typing import List, Dict, Union
-
+from typing import List, Dict, Union, Callable, Any
 
 import toml
 from bs4 import BeautifulSoup
@@ -186,14 +185,32 @@ class Utils:
 @dataclass
 class ProcessReference:
     """keeps track of useful process data."""
-    command: str
+    target: Callable
+    args: List[Any]
     kill_after_time: int
     process_object: Process
     is_active: bool
+    retry_max: int
 
     def has_timed_out(self) -> bool:
         current_time_in_seconds = int(time.time())
         return current_time_in_seconds >= self.kill_after_time
+
+    @property
+    def should_retry(self):
+        return self.retry_max > 0
+
+    @property
+    def command(self):
+        try:
+            return self.args[0]
+        except IndexError:
+            raise Utils.AutoHackException(
+                f'Process {self.process_object.pid} Does Not Have Any Arguments Recorded'
+            )
+
+    def decrement_retry_max(self):
+        self.retry_max -= 1
 
 
 class ProcessManager:
@@ -201,7 +218,6 @@ class ProcessManager:
         self,
         verbose: bool,
         time_between_heart_beats: int,
-        retry_max: int
     ):
         self.processes: List[ProcessReference] = []
         self.verbose = verbose
@@ -209,7 +225,6 @@ class ProcessManager:
         self.heart_beat_process = Thread(
             target=self.heart_beat,
         )
-        self.retry_max = retry_max
 
     def append_process(self, process: ProcessReference) -> None:
         self.processes.append(process)
@@ -236,6 +251,26 @@ class ProcessManager:
 
         Utils.process_safe_print(message)
 
+    @staticmethod
+    def retry_process(process: ProcessReference):
+        """
+        * Creates a new process using the preexisting target and args.
+        * Updates attributes of process reference
+
+        :param process:
+        :return:
+        """
+
+        # create new process using preexisting
+        pr = Process(target=process.target, args=process.args)
+        pr.start()
+
+        # update process reference attributes
+        process.process_object = pr
+        process.kill_after_time = int(time.time()) + AutoHack.command_timeout
+        process.is_active = True
+        process.decrement_retry_max()
+
     def heart_beat(self) -> None:
         while True:
             time.sleep(self.time_between_heart_beats)
@@ -253,7 +288,14 @@ class ProcessManager:
                     message = (f'\n{Colors.RED}{Colors.BOLD}KILLING PROCESS DUE TO TIMEOUT: '
                                f'PID:{process.process_object.pid}{Colors.END}\n')
                     Utils.process_safe_print(message)
-                    continue
+
+                    if not process.should_retry:
+                        continue
+
+                    self.retry_process(process)
+                    message = (f'\n{Colors.CYAN}{Colors.BOLD}COMMAND RESTARTED:'
+                               f'PID:{process.process_object.pid}{Colors.END}\n')
+                    Utils.process_safe_print(message)
 
                 active_processes.append(process)
 
@@ -289,10 +331,10 @@ class AutoHack:
         self.current_working_directory = os.getcwd()
         self.use_processes = use_processes
         self.verbose = verbose
+        self.retry_max = retry_max
         self.process_manager = ProcessManager(
             verbose=verbose,
             time_between_heart_beats=heart_beat_time,
-            retry_max=retry_max
         )
         self.process_manager.run()
 
@@ -529,22 +571,25 @@ class AutoHack:
         process = Popen(command, shell=True, stdout=PIPE, stderr=PIPE)
         _, __ = process.communicate()
 
-    def record_process_reference(self, command, pr):
+    def record_process_reference(self, target, arguments, pr):
         """
         Stores a reference to a process so we can keep
         track of its progress
 
-        :param command: command being run in process
+        :param target: the function being called
+        :param arguments: the arguments function is being called with
         :param pr: process object
         :return:
         """
-
         kill_after_time = int(time.time()) + self.command_timeout
+
         process_reference = ProcessReference(
-            command=command,
+            target=target,
+            args=arguments,
             kill_after_time=kill_after_time,
             process_object=pr,
             is_active=True,
+            retry_max=self.retry_max
         )
         self.process_manager.append_process(process_reference)
 
@@ -681,12 +726,14 @@ class AutoHack:
                     command = sub_scan['command']
                     patterns = sub_scan.get('pattern', [])
                     if self.use_processes:
-                        pr = Process(
-                            target=self.execute_secondary_enumerate_command,
-                            args=(command, service_scan_data, patterns)
-                        )
+                        target = self.execute_secondary_enumerate_command
+                        arguments = (command, service_scan_data, patterns)
+
+                        pr = Process(target=target,args=arguments)
                         pr.start()
-                        self.record_process_reference(command, pr)
+
+                        self.record_process_reference(
+                            target=target, arguments=arguments, pr=pr)
                     else:
                         self.execute_secondary_enumerate_command(
                             command, service_scan_data, patterns
