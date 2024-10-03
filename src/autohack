@@ -350,7 +350,8 @@ class AutoHack:
             verbose=verbose,
             time_between_heart_beats=heart_beat_time,
         )
-        self.process_manager.run()
+        if use_processes:
+            self.process_manager.run()
 
         output_directory = output_directory or os.path.join(
             self.current_working_directory,
@@ -608,11 +609,16 @@ class AutoHack:
         )
         self.process_manager.append_process(process_reference)
 
-    def wait_for_all_jobs_to_complete(self):
+    def wait_for_all_processes(self):
         """
         This blocks execution until all the spawned processes and threads have completed
         :return:
         """
+        if not self.use_processes:
+            # if processes are not being used,
+            # this can be skipped
+            return
+
         for pr in self.process_manager.processes:
             pr.process_object.join()
 
@@ -860,5 +866,5 @@ if __name__ == "__main__":
     )
     Utils.print_time()
     autohack.primary_enumerate()
-    autohack.wait_for_all_jobs_to_complete()
+    autohack.wait_for_all_processes()
     print('\nAutoHack Complete')
