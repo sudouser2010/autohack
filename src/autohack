@@ -191,6 +191,7 @@ class ProcessReference:
     process_object: Process
     is_active: bool
     retry_max: int
+    command_pids: List[str]
 
     def has_timed_out(self) -> bool:
         current_time_in_seconds = int(time.time())
@@ -211,6 +212,14 @@ class ProcessReference:
 
     def decrement_retry_max(self):
         self.retry_max -= 1
+
+    def append_pid(self, pid: str):
+        """
+        Keeping track of this command's pids is useful when debugging
+        :param pid:
+        :return:
+        """
+        self.command_pids.append(pid)
 
 
 class ProcessManager:
@@ -267,6 +276,7 @@ class ProcessManager:
 
         # update process reference attributes
         process.process_object = pr
+        process.append_pid(str(pr.pid))
         process.kill_after_time = int(time.time()) + AutoHack.command_timeout
         process.is_active = True
         process.decrement_retry_max()
@@ -286,15 +296,19 @@ class ProcessManager:
                     process.process_object.terminate()
                     process.is_active = False
                     message = (f'\n{Colors.RED}{Colors.BOLD}KILLING PROCESS DUE TO TIMEOUT: '
-                               f'PID:{process.process_object.pid}{Colors.END}\n')
+                               f'PID:{process.process_object.pid}{Colors.END}')
                     Utils.process_safe_print(message)
 
                     if not process.should_retry:
                         continue
 
                     self.retry_process(process)
-                    message = (f'\n{Colors.CYAN}{Colors.BOLD}COMMAND RESTARTED:'
-                               f'PID:{process.process_object.pid}{Colors.END}\n')
+                    command_pids = '->'.join(process.command_pids)
+                    message = (
+                        f'{Colors.MAGENTA}{Colors.BOLD}COMMAND RESTARTED:{Colors.END} '
+                        f'{Colors.CYAN}{Colors.BOLD}COMMAND PIDS:{Colors.END}'
+                        f'{Colors.GREEN}{Colors.BOLD}{command_pids}{Colors.END}\n'
+                    )
                     Utils.process_safe_print(message)
 
                 active_processes.append(process)
@@ -589,7 +603,8 @@ class AutoHack:
             kill_after_time=kill_after_time,
             process_object=pr,
             is_active=True,
-            retry_max=self.retry_max
+            retry_max=self.retry_max,
+            command_pids=[str(pr.pid)]
         )
         self.process_manager.append_process(process_reference)
 
