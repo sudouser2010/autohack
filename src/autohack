@@ -189,7 +189,6 @@ class ProcessReference:
     args: List[Any]
     kill_after_time: int
     process_object: Process
-    is_active: bool
     retry_max: int
     command_pids: List[str]
 
@@ -278,7 +277,6 @@ class ProcessManager:
         process.process_object = pr
         process.append_pid(str(pr.pid))
         process.kill_after_time = int(time.time()) + AutoHack.command_timeout
-        process.is_active = True
         process.decrement_retry_max()
 
     def heart_beat(self) -> None:
@@ -289,12 +287,11 @@ class ProcessManager:
             for process in self.processes:
 
                 # skip non-active processes
-                if not process.is_active:
+                if not process.process_object.is_alive():
                     continue
 
                 if process.has_timed_out():
                     process.process_object.terminate()
-                    process.is_active = False
                     message = (f'\n{Colors.RED}{Colors.BOLD}KILLING PROCESS DUE TO TIMEOUT: '
                                f'PID:{process.process_object.pid}{Colors.END}')
                     Utils.process_safe_print(message)
@@ -603,7 +600,6 @@ class AutoHack:
             args=arguments,
             kill_after_time=kill_after_time,
             process_object=pr,
-            is_active=True,
             retry_max=self.retry_max,
             command_pids=[str(pr.pid)]
         )
