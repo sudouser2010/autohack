@@ -7,7 +7,7 @@
 
 * Create AutoHack Docker container
   ```
-  docker run -ti -v ${PWD}/portal:/root/portal hdizzle/autohack 
+  docker run -it --net=host -v ${PWD}/portal:/root/portal hdizzle/autohack 
   ```
   Command above does the following:
   * creates Docker container based on the [AutoHack image](https://registry.hub.docker.com/r/hdizzle/autohack)
