@@ -858,7 +858,8 @@ if __name__ == "__main__":
         '-pro', '--professional', action='store_false',
         dest='professional', default=False, required=False,
         help="Uses AutoHack's API to Iteratively Generate and Run Commands "
-             "that Attack Target Machine Based on Previous Command-Output Files",
+             "that Attack Target Machine Based on Previous Command-Output Files. "
+             "Only Use This If You Have Permission to Penetrate the Target Machine.",
     )
     args = parser.parse_args()
     autohack = AutoHack(
