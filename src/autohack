@@ -846,6 +846,12 @@ if __name__ == "__main__":
         dest='heart_beat_time', help='Seconds Between Heart Beats',
         default=60
     )
+    parser.add_argument(
+        '-pro', '--professional', action='store_false',
+        dest='professional', default=False, required=False,
+        help="Uses AutoHack's API to Iteratively Generate and Run Commands "
+             "that Attack Target Machine Based on Previous Command-Output Files",
+    )
     args = parser.parse_args()
     autohack = AutoHack(
         ip_address=args.ip_address,
