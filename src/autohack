@@ -329,6 +329,7 @@ class AutoHack:
     should_kill_heart_beat = False
     command_timeout = 0
     api_source = os.getenv('AUTOHACK_API_SOURCE') or 'https://api.autohack.com'
+    api_key = os.getenv('AUTOHACK_API_KEY') or 'FREE'
 
     def __init__(
         self, ip_address, output_directory=None, config_directory=None,
@@ -801,7 +802,10 @@ class AutoHack:
             files_to_upload = {file_name_with_extension: open(file_path, 'rb')}
 
         url = f'{self.api_source}/analyze-enumerate-results'
-        requests.post(url, files=files_to_upload)
+        headers = {
+            'API_KEY': self.api_key,
+        }
+        requests.post(url, files=files_to_upload, headers=headers)
 
     def exploit(self) -> None:
         """
