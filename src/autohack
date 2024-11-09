@@ -5,6 +5,8 @@ import site
 import time
 import shlex
 import argparse
+import requests
+from glob import glob
 from dataclasses import dataclass
 from multiprocessing import Lock
 from multiprocessing import Process
@@ -782,6 +784,25 @@ class AutoHack:
                     command, port_scan_data
                 )
 
+    def upload_enumeration_files(self):
+        xml_file_pattern = glob(f'{self.scan_directory}/xml/*.xml')
+        text_file_pattern = glob(f'{self.scan_directory}/*.txt')
+        files_to_upload = {}
+        files_uploaded_without_extensions = set()
+
+        for file_path in xml_file_pattern + text_file_pattern:
+            file_name_with_extension = os.path.basename(file_path)
+            file_path_without_extension = os.path.splitext(file_name_with_extension)[0]
+
+            if file_path_without_extension in files_uploaded_without_extensions:
+                continue
+
+            files_uploaded_without_extensions.add(file_path_without_extension)
+            files_to_upload = {file_name_with_extension: open(file_path, 'rb')}
+
+        url = f'{self.api_source}/analyze-enumerate-results'
+        requests.post(url, files=files_to_upload)
+
     def exploit(self) -> None:
         """
         When run in professional mode, code exploits based on
@@ -789,7 +810,8 @@ class AutoHack:
         :return:
         """
         if self.professional:
-            pass
+            self.upload_enumeration_files()
+
         AutoHack.should_kill_heart_beat = True
 
 
@@ -860,8 +882,8 @@ if __name__ == "__main__":
         default=60
     )
     parser.add_argument(
-        '-pro', '--professional', action='store_false',
-        dest='professional', default=False, required=False,
+        '-pro', '--professional',
+        action=argparse.BooleanOptionalAction, type=bool, dest='professional',
         help="Uses AutoHack's API to Iteratively Generate and Run Commands "
              "that Attack Target Machine Based on Previous Command-Output Files. "
              "Only Use This If You Have Permission to Penetrate the Target Machine.",
