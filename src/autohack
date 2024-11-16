@@ -804,6 +804,8 @@ class AutoHack:
         url = f'{self.api_source}/analyze-enumerate-results'
         headers = {
             'API_KEY': self.api_key,
+            'address': self.address,
+            'scandir': self.scan_directory,
         }
         requests.post(url, files=files_to_upload, headers=headers)
 
