@@ -339,7 +339,7 @@ class AutoHack:
     ) -> None:
         AutoHack.command_timeout = command_timeout
         self.process_lock = Utils.get_lock()
-        self.address = ip_address
+        self.target_address = ip_address
         self.port_scan_type = port_scan_type
         self.nmap_extra = nmap_extra
         self.ports = ports
@@ -357,7 +357,7 @@ class AutoHack:
 
         output_directory = output_directory or os.path.join(
             self.current_working_directory,
-            'results', self.address
+            'results', self.target_address
         )
         config_directory = self.get_config(config_directory)
         port_scan_config_file = os.path.join(config_directory, 'port-scans.toml')
@@ -717,7 +717,7 @@ class AutoHack:
             service_scan_data = {
                 'nmap_extra': self.nmap_extra,
                 'scandir': self.scan_directory,
-                'address': self.address,
+                'target_address': self.target_address,
                 'port': port['portid'],
                 'protocol': port['protocol'],
                 'name': service['name'],
@@ -774,7 +774,7 @@ class AutoHack:
         port_scan_data = {
             'nmap_extra': self.nmap_extra,
             'scandir': self.scan_directory,
-            'address': self.address,
+            'target_address': self.target_address,
             'ports': self.ports,
         }
 
@@ -804,7 +804,7 @@ class AutoHack:
         url = f'{self.api_source}/analyze-enumerate-results'
         headers = {
             'API_KEY': self.api_key,
-            'address': self.address,
+            'target_address': self.target_address,
             'scandir': self.scan_directory,
         }
         requests.post(url, files=files_to_upload, headers=headers)
