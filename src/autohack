@@ -388,13 +388,13 @@ class AutoHack:
 
         self.detected_services = set()
         self.pattern_matches = dict()
-        self.manual_scans = set()
+        self.exploit_scans = set()
         self.commands_ran = set()
         self.commands_run_log = os.path.join(log_directory, 'commands.log')
         self.detected_services_log = os.path.join(log_directory, 'detected_services.log')
-        self.manual_steps_log = os.path.join(log_directory, 'manual_steps.log')
+        self.exploit_steps_log = os.path.join(log_directory, 'exploit_steps.log')
         self.patterns_detected_log = os.path.join(log_directory, 'patterns.log')
-        Utils.clear_file(self.manual_steps_log)
+        Utils.clear_file(self.exploit_steps_log)
 
     def get_config(self, config_directory: str):
         """
@@ -493,25 +493,25 @@ class AutoHack:
                 f.write(f"{detected_service}\n")
             self.process_lock.release()
 
-    def log_manual_steps(self, manual_scans: List[Dict], service_scan_data: Dict) -> None:
+    def log_exploit_steps(self, exploit_scans: List[Dict], service_scan_data: Dict) -> None:
         """
-        Writes manual scans to a log file
-        :param manual_scans:
+        Writes exploit scans to a log file
+        :param exploit_scans:
         :param service_scan_data:
         :return:
         """
-        with open(self.manual_steps_log, 'a') as f:
+        with open(self.exploit_steps_log, 'a') as f:
             self.process_lock.acquire()
-            for sub_scan in manual_scans:
+            for sub_scan in exploit_scans:
                 message = f"[*] {sub_scan['description']}\n"
                 wrote_command = False
 
                 for command in sub_scan['commands']:
                     command = command.format(**service_scan_data)
-                    if command in self.manual_scans:
+                    if command in self.exploit_scans:
                         continue
                     wrote_command = True
-                    self.manual_scans.add(command)
+                    self.exploit_scans.add(command)
                     message += f"\t{command}\n"
                 if wrote_command:
                     f.write(f"{message}\n\n")
@@ -738,8 +738,8 @@ class AutoHack:
                 if match is None:
                     continue
 
-                if 'manual' in scan:
-                    self.log_manual_steps(scan['manual'], service_scan_data)
+                if 'exploit' in scan:
+                    self.log_exploit_steps(scan['exploit'], service_scan_data)
 
                 if 'scan' not in scan:
                     continue

