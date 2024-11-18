@@ -666,7 +666,11 @@ class AutoHack:
             command_printed = f"SECONDARY ENUMERATE:\n\t{Colors.GREEN}{command}{Colors.END}"
             self.process_print(command_printed)
             self.run_command(command)
-            self.process_print(f"{Colors.MAGENTA}{Colors.BOLD}Command Completed{Colors.END}\n")
+            current_time_in_seconds = int(time.time())
+            self.process_print(
+                f"{Colors.MAGENTA}{Colors.BOLD}Command Completed{Colors.END} "
+                f"[at {current_time_in_seconds}]\n"
+            )
 
         if output_file is None:
             return
@@ -697,7 +701,11 @@ class AutoHack:
             command_printed = f"PRIMARY ENUMERATE:\n\t{Colors.GREEN}{command}{Colors.END}"
             self.process_print(command_printed)
             self.run_command(command)
-            self.process_print(f"{Colors.MAGENTA}{Colors.BOLD}Command Completed{Colors.END}\n")
+            current_time_in_seconds = int(time.time())
+            self.process_print(
+                f"{Colors.MAGENTA}{Colors.BOLD}Command Completed{Colors.END}"
+                f"[at {current_time_in_seconds}]\n"
+            )
 
         if output_file is None:
             return
