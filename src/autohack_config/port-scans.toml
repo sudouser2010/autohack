@@ -1,10 +1,5 @@
 [full]
 
-    [full.nmap-quick]
-
-        [full.nmap-quick.service-detection]
-        command = 'nmap {nmap_extra} -sV -sC -T4 --version-all --min-rate=1000 -oN "{scandir}/_quick_tcp_nmap.txt" -oX "{scandir}/xml/_quick_tcp_nmap.xml" {target_address}'
-
     [full.nmap-full-tcp]
 
         [full.nmap-full-tcp.service-detection]
