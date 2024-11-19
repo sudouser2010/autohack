@@ -837,6 +837,9 @@ class AutoHack:
             files_to_upload[file_name_with_extension] = open(file_path, 'rb').read()
 
         url = f'{self.api_source}/analyze-enumerate-results'
+        attacker_address = self.attacker_address or Utils.get_attacker_address()
+        if attacker_address is None:
+            raise Utils.AutoHackException('Attacker Address Must Be Defined')
 
         headers = {
             'API_KEY': self.api_key,
