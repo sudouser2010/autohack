@@ -2,7 +2,7 @@
 import os
 import re
 import site
-import socket
+import subprocess as sp
 import time
 import shlex
 import argparse
@@ -185,17 +185,29 @@ class Utils:
         return chart
 
     @staticmethod
-    def get_attacker_address() -> str:
+    def get_attacker_address(interface='tun0') -> str | None:
         """
         Gets ip address of attacker. This is used for
         obtaining a reverse shell.
 
+        By default, it uses the tun0 network interface since the attacker
+        is likely connected to the target through a vpn.
+
+        :param interface:
         :return:
         """
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        s.connect(('<broadcast>', 1))
-        return s.getsockname()[0]
+        try:
+            result = sp.check_output(
+                ['ip', '-4', 'addr', 'show', interface],
+                stderr=sp.STDOUT
+            )
+            result = result.decode().splitlines()
+            ipaddr = [l.split()[1].split('/')[0] for l in result if "inet" in l]
+            return ipaddr[0]
+
+        except (Exception,):
+            return None
+
 
 
 @dataclass
@@ -346,7 +358,7 @@ class AutoHack:
     api_key = os.getenv('AUTOHACK_API_KEY') or 'FREE'
 
     def __init__(
-        self, ip_address, output_directory=None, config_directory=None,
+        self, ip_address, attacker_ip_address, output_directory=None, config_directory=None,
         port_scan_type=None, nmap_extra=None, ports=None,
         use_processes=None, verbose=None, command_timeout=None,
         heart_beat_time=None, retry_max=None, professional=None
@@ -354,6 +366,7 @@ class AutoHack:
         AutoHack.command_timeout = command_timeout
         self.process_lock = Utils.get_lock()
         self.target_address = ip_address
+        self.attacker_address = attacker_ip_address
         self.port_scan_type = port_scan_type
         self.nmap_extra = nmap_extra
         self.ports = ports
@@ -824,10 +837,11 @@ class AutoHack:
             files_to_upload[file_name_with_extension] = open(file_path, 'rb').read()
 
         url = f'{self.api_source}/analyze-enumerate-results'
+
         headers = {
             'API_KEY': self.api_key,
             'target_address': self.target_address,
-            'attacker_address': Utils.get_attacker_address(),
+            'attacker_address': self.attacker_address or Utils.get_attacker_address(),
             'scandir': self.scan_directory,
         }
         requests.post(url, files=files_to_upload, headers=headers)
@@ -862,8 +876,15 @@ if __name__ == "__main__":
                 -analyzed for regex patterns
     """
     parser = argparse.ArgumentParser(description='Does Enumeration')
-    parser.add_argument('-i', '--ip_address', action='store', type=str,
-                        dest='ip_address', help='IP Address', required=True)
+    parser.add_argument(
+        '-i', '--ip_address', action='store', type=str,
+        dest='ip_address', help='IP Address', required=True
+    )
+    parser.add_argument(
+        '-ai', '--attacker_ip_address', action='store', type=str,
+        dest='attacker_ip_address', required=False,
+        help='Attackers IP Address, Used When Crafting Reverse Shell Payload'
+    )
     parser.add_argument(
         '-c', '--config', action='store', type=str,
         dest='config_folder', help='Config Folder'
@@ -920,6 +941,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     autohack = AutoHack(
         ip_address=args.ip_address,
+        attacker_ip_address=args.attacker_ip_address,
         output_directory=args.output_folder,
         config_directory=args.config_folder,
         port_scan_type=args.port_scan_type,
