@@ -908,7 +908,7 @@ class AutoHack:
 
         for index, command in enumerate(commands):
             unique_screen_name = str(uuid.uuid4())
-            screen_command = f"screen -S {unique_screen_name} -c '{command}'"
+            screen_command = f"screen -S {unique_screen_name} bash -c '{command}'"
             target = self.run_command
             arguments = (screen_command, False)
 
