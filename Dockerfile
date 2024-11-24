@@ -8,7 +8,7 @@ WORKDIR /root
 RUN apt -y update && apt -y dist-upgrade && apt -y autoremove && apt clean
 
 # Install common and useful tools
-RUN apt -y install curl wget vim git net-tools whois netcat-traditional pciutils usbutils
+RUN apt -y install curl wget vim git net-tools whois netcat-traditional pciutils usbutils screen nano
 
 # Install useful languages
 RUN apt -y install python3-pip golang nodejs npm

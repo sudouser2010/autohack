@@ -6,6 +6,8 @@ import subprocess as sp
 import time
 import shlex
 import argparse
+import uuid
+
 import requests
 from glob import glob
 from dataclasses import dataclass
@@ -421,7 +423,10 @@ class AutoHack:
         self.detected_services_log = os.path.join(log_directory, 'detected_services.log')
         self.exploit_steps_log = os.path.join(log_directory, 'exploit_steps.log')
         self.patterns_detected_log = os.path.join(log_directory, 'patterns.log')
+        self.session_id: str | None = None
         Utils.clear_file(self.exploit_steps_log)
+
+        self.screen_processes = dict()
 
     def get_config(self, config_directory: str):
         """
@@ -605,13 +610,16 @@ class AutoHack:
                     f.write(message)
         self.process_lock.release()
 
-    def run_command(self, command: str) -> None:
+    def run_command(self, command: str, should_log=True) -> None:
         """
         Executes a command
         :param command:
+        :param should_log:
         :return:
         """
-        self.log_command(command)
+        if should_log:
+            self.log_command(command)
+
         process = Popen(command, shell=True, stdout=PIPE, stderr=PIPE)
         _, __ = process.communicate()
 
@@ -652,6 +660,7 @@ class AutoHack:
 
         # let heart beat thread complete after process
         self.process_manager.heart_beat_process.join()
+        Utils.print_time()
 
     def execute_secondary_enumerate_command(
             self, command: str,
@@ -676,13 +685,14 @@ class AutoHack:
         if Utils.should_run_command(output_file):
             self.commands_ran.add(command)
             command = 'sudo ' + command
-            command_printed = f"SECONDARY ENUMERATE:\n\t{Colors.GREEN}{command}{Colors.END}"
+            time_before_command = int(time.time())
+            command_printed = f"SECONDARY ENUMERATE: [at {time_before_command}]\n\t{Colors.GREEN}{command}{Colors.END}"
             self.process_print(command_printed)
             self.run_command(command)
-            current_time_in_seconds = int(time.time())
+            time_after_command = int(time.time())
             self.process_print(
                 f"{Colors.MAGENTA}{Colors.BOLD}Command Completed{Colors.END} "
-                f"[at {current_time_in_seconds}]\n"
+                f"[at {time_after_command}]\n"
             )
 
         if output_file is None:
@@ -711,13 +721,14 @@ class AutoHack:
         if Utils.should_run_command(output_file):
             self.commands_ran.add(command)
             command = 'sudo ' + command
-            command_printed = f"PRIMARY ENUMERATE:\n\t{Colors.GREEN}{command}{Colors.END}"
+            time_before_command = int(time.time())
+            command_printed = f"PRIMARY ENUMERATE: [at {time_before_command}]\n\t{Colors.GREEN}{command}{Colors.END}"
             self.process_print(command_printed)
             self.run_command(command)
-            current_time_in_seconds = int(time.time())
+            time_after_command = int(time.time())
             self.process_print(
-                f"{Colors.MAGENTA}{Colors.BOLD}Command Completed{Colors.END}"
-                f"[at {current_time_in_seconds}]\n"
+                f"{Colors.MAGENTA}{Colors.BOLD}Primary Command Completed{Colors.END} "
+                f"[at {time_after_command}]\n"
             )
 
         if output_file is None:
@@ -821,6 +832,9 @@ class AutoHack:
                 )
 
     def upload_enumeration_files(self):
+        """
+        Uploads enumeration file and receives the session_id from the api
+        """
         xml_file_pattern = glob(f'{self.scan_directory}/xml/*.xml')
         text_file_pattern = glob(f'{self.scan_directory}/*.txt')
         files_to_upload = {}
@@ -847,7 +861,90 @@ class AutoHack:
             'attacker_address': self.attacker_address or Utils.get_attacker_address(),
             'scandir': self.scan_directory,
         }
-        requests.post(url, files=files_to_upload, headers=headers)
+        response = requests.post(url, files=files_to_upload, headers=headers)
+        response_data = response.json()
+        self.session_id = response_data['session_id']
+
+    def get_best_attack(self) -> dict:
+        """
+        Requests the current best attack from the Api
+        """
+        headers = {
+            'API_KEY': self.api_key,
+            'session_id': self.session_id,
+        }
+        url = f'{self.api_source}/get-best-attack'
+        response = requests.post(url, headers=headers)
+        response_data = response.json()
+        return response_data
+
+    def run_all_exploit_processes(self, processes: list, delay_between_processes: int = 1) -> None:
+        """
+        Runs command with a delay between each process in processes
+        """
+        for process in processes:
+            command = self.screen_processes[process.pid]['command']
+            attack_command_index = self.screen_processes[process.pid]['attack_command_index']
+            time_before_command = int(time.time())
+            command_printed = (
+                f"\tEXPLOIT COMMAND{attack_command_index}: [at {time_before_command}]\n"
+                f"\t\t{Colors.GREEN}{command}{Colors.END}"
+            )
+            self.process_print(command_printed)
+            process.join()
+            time.sleep(delay_between_processes)
+
+    def execute_attack(self, attack: dict):
+        """
+            Runs commands in attack via screen. Some commands
+            may block subsequent commands.
+        """
+        temp_non_blocking_processes = []
+        commands = attack['attack_commands']['command_group']
+        is_blocking = attack['attack_commands']['meta']['command_should_block']
+        description = attack['attack_commands']['command_description'].strip()
+
+        self.process_print(f'RUNNING COMMANDS FOR: {description}:')
+
+        for index, command in enumerate(commands):
+            unique_screen_name = str(uuid.uuid4())
+            screen_command = f"screen -S {unique_screen_name} -c '{command}'"
+            target = self.run_command
+            arguments = (screen_command, False)
+
+            p = Process(target=target, args=arguments)
+            p.start()
+
+            # store process id with the unique screen name
+            self.screen_processes[p.pid] = {
+                'unique_screen_name': unique_screen_name,
+                'command': command,
+                'attack_command_index': index
+            }
+
+            temp_non_blocking_processes.append(p)
+
+            should_block = is_blocking[index]
+            is_last_loop = index == len(commands) - 1
+
+            if should_block or is_last_loop:
+                # start preexisting non-blocking jobs
+                self.run_all_exploit_processes(temp_non_blocking_processes)
+                temp_non_blocking_processes = []
+
+    def attack_repeatedly(self):
+        """
+        Repeatedly
+            Gets the best attack based on the previous enumeration output
+            and then implements attack until all attacks have been exhausted
+        """
+        while True:
+            best_attack = self.get_best_attack()
+            if not best_attack['should_continue']:
+                print('No Exploit Discovered')
+                break
+
+            self.execute_attack(best_attack)
 
     def exploit(self) -> None:
         """
@@ -857,6 +954,7 @@ class AutoHack:
         """
         if self.professional:
             self.upload_enumeration_files()
+            self.attack_repeatedly()
 
         AutoHack.should_kill_heart_beat = True
 
@@ -962,4 +1060,4 @@ if __name__ == "__main__":
     autohack.exploit()
     autohack.wait_for_all_processes()
 
-    print('\nAutoHack Complete')
+    print('AutoHack Complete')
