@@ -884,11 +884,15 @@ class AutoHack:
         commands = attack['attack_commands']['command_group']
         is_blocking = attack['attack_commands']['meta']['command_should_block']
         vul_name = attack['attack_commands']['vulnerability_name'].strip()
+        main_command_index = attack['attack_commands']['meta']['continuation_index']
 
         self.process_print(f'RUNNING COMMANDS FOR: {vul_name}:')
 
         for index, command in enumerate(commands):
             unique_screen_name = str(uuid.uuid4())
+            if main_command_index == index:
+                attack['main_command_unique_id'] = unique_screen_name
+
             screen_command = f"screen -dmS {unique_screen_name} bash -c '{command}'"
 
             target = self.run_command
@@ -910,11 +914,39 @@ class AutoHack:
                 blocking_command = f"tail --pid=$(pgrep -f {unique_screen_name}) -f /dev/null"
                 self.run_command(blocking_command, False)
 
-    def verify_exploit_success(self, attack):
+    def attack_is_successful(self, attack) -> bool:
         """
-            Examines main attack screen output to see if attack was successful
+            Examines main attack screen output to see if attack was successful.
+            * Creates file with screen contents
+            * Grabs file contents
+            * Removes file once read
+            * Sends file to server
         """
-        pass
+        message = f"\tVERIFYING ATTACK SUCCESS: [at {int(time.time())}]\n"
+        self.process_print(message)
+
+        # slow execution to ensure attack ran
+        time.sleep(2)
+
+        main_command_unique_id = attack['main_command_unique_id']
+        tmp_file_path = f'/tmp/{main_command_unique_id}.txt'
+        grab_screen_command = f"screen -r {main_command_unique_id} -X hardcopy {tmp_file_path}"
+
+        # create file with contents
+        self.run_command(grab_screen_command, False)
+
+        main_screen_output = open(tmp_file_path, 'r').read()
+        os.remove(tmp_file_path)
+
+        url = f'{self.api_source}/verify-best-attack-success'
+        headers = { 'API_KEY': self.api_key }
+        data = {
+            'main_screen_output': main_screen_output,
+        }
+        response = requests.post(url, data=data, headers=headers)
+        response_data = response.json()
+
+        return response_data['is_successful']
 
     def attack_repeatedly(self):
         """
@@ -929,7 +961,8 @@ class AutoHack:
                 break
 
             self.execute_attack(best_attack)
-            self.verify_exploit_success(best_attack)
+            if self.attack_is_successful(best_attack):
+                break
 
     def exploit(self) -> None:
         """
