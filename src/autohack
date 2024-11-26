@@ -426,8 +426,6 @@ class AutoHack:
         self.session_id: str | None = None
         Utils.clear_file(self.exploit_steps_log)
 
-        self.screen_processes = dict()
-
     def get_config(self, config_directory: str):
         """
         The config directory is needed for enumeration.
@@ -904,12 +902,6 @@ class AutoHack:
             self.process_print(command_printed)
 
             p = Process(target=target, args=arguments)
-            # store process id with the unique screen name
-            self.screen_processes[p.pid] = {
-                'unique_screen_name': unique_screen_name,
-                'command': command,
-                'attack_command_index': index
-            }
             p.start()
             p.join()
 
@@ -917,6 +909,12 @@ class AutoHack:
                 # wait for screen command to finish
                 blocking_command = f"tail --pid=$(pgrep -f {unique_screen_name}) -f /dev/null"
                 self.run_command(blocking_command, False)
+
+    def verify_exploit_success(self, attack):
+        """
+            Examines main attack screen output to see if attack was successful
+        """
+        pass
 
     def attack_repeatedly(self):
         """
@@ -931,6 +929,7 @@ class AutoHack:
                 break
 
             self.execute_attack(best_attack)
+            self.verify_exploit_success(best_attack)
 
     def exploit(self) -> None:
         """
