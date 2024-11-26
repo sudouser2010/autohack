@@ -878,59 +878,45 @@ class AutoHack:
         response_data = response.json()
         return response_data
 
-    def run_all_exploit_processes(self, processes: list, delay_between_processes: int = 1) -> None:
-        """
-        Runs command with a delay between each process in processes
-        """
-        for process in processes:
-            command = self.screen_processes[process.pid]['command']
-            attack_command_index = self.screen_processes[process.pid]['attack_command_index']
-            time_before_command = int(time.time())
-            command_printed = (
-                f"\tEXPLOIT COMMAND{attack_command_index}: [at {time_before_command}]\n"
-                f"\t\t{Colors.GREEN}{command}{Colors.END}"
-            )
-            self.process_print(command_printed)
-            process.join()
-            time.sleep(delay_between_processes)
-
     def execute_attack(self, attack: dict):
         """
             Runs commands in attack via screen. Some commands
             may block subsequent commands.
         """
-        temp_non_blocking_processes = []
         commands = attack['attack_commands']['command_group']
         is_blocking = attack['attack_commands']['meta']['command_should_block']
-        description = attack['attack_commands']['command_description'].strip()
+        vul_name = attack['attack_commands']['vulnerability_name'].strip()
 
-        self.process_print(f'RUNNING COMMANDS FOR: {description}:')
+        self.process_print(f'RUNNING COMMANDS FOR: {vul_name}:')
 
         for index, command in enumerate(commands):
             unique_screen_name = str(uuid.uuid4())
-            screen_command = f"screen -S {unique_screen_name} bash -c '{command}'"
+            screen_command = f"screen -dmS {unique_screen_name} bash -c '{command}'"
+
             target = self.run_command
             arguments = (screen_command, False)
 
-            p = Process(target=target, args=arguments)
-            p.start()
+            time_before_command = int(time.time())
+            command_printed = (
+                f"\tEXPLOIT COMMAND-{index}: [at {time_before_command}]\n"
+                f"\t\t{Colors.GREEN}{command}{Colors.END}\n"
+            )
+            self.process_print(command_printed)
 
+            p = Process(target=target, args=arguments)
             # store process id with the unique screen name
             self.screen_processes[p.pid] = {
                 'unique_screen_name': unique_screen_name,
                 'command': command,
                 'attack_command_index': index
             }
+            p.start()
+            p.join()
 
-            temp_non_blocking_processes.append(p)
-
-            should_block = is_blocking[index]
-            is_last_loop = index == len(commands) - 1
-
-            if should_block or is_last_loop:
-                # start preexisting non-blocking jobs
-                self.run_all_exploit_processes(temp_non_blocking_processes)
-                temp_non_blocking_processes = []
+            if is_blocking[index]:
+                # wait for screen command to finish
+                blocking_command = f"tail --pid=$(pgrep -f {unique_screen_name}) -f /dev/null"
+                self.run_command(blocking_command, False)
 
     def attack_repeatedly(self):
         """
