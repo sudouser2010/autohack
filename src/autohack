@@ -407,12 +407,12 @@ class AutoHack:
         self.scan_directory = os.path.join(output_directory, 'scans')
         xml_directory = os.path.join(self.scan_directory, 'xml')
         log_directory = os.path.join(self.scan_directory, 'logs')
-        exploit_directory = os.path.join(output_directory, 'exploit')
+        self.exploit_directory = os.path.join(output_directory, 'exploit')
         priv_directory = os.path.join(output_directory, 'priv')
         loot_directory = os.path.join(output_directory, 'loot')
         Utils.make_directories(
             self.scan_directory, xml_directory, log_directory,
-            exploit_directory, priv_directory, loot_directory
+            self.exploit_directory, priv_directory, loot_directory
         )
 
         self.detected_services = set()
@@ -886,7 +886,7 @@ class AutoHack:
         vul_name = attack['attack_commands']['vulnerability_name'].strip()
         main_command_index = attack['attack_commands']['meta']['continuation_index']
 
-        self.process_print(f'RUNNING COMMANDS FOR: {vul_name}:')
+        print(f'{Colors.CYAN}RUNNING ATTACK COMMANDS FOR:{Colors.END} {vul_name}:\n')
 
         for index, command in enumerate(commands):
             unique_screen_name = str(uuid.uuid4())
@@ -900,10 +900,10 @@ class AutoHack:
 
             time_before_command = int(time.time())
             command_printed = (
-                f"\tEXPLOIT COMMAND-{index}: [at {time_before_command}]\n"
+                f"\tEXPLOIT COMMAND-{index} [at {time_before_command}]\n"
                 f"\t\t{Colors.GREEN}{command}{Colors.END}\n"
             )
-            self.process_print(command_printed)
+            print(command_printed)
 
             p = Process(target=target, args=arguments)
             p.start()
@@ -919,31 +919,29 @@ class AutoHack:
             Examines main attack screen output to see if attack was successful.
             * Creates file with screen contents
             * Grabs file contents
-            * Removes file once read
             * Sends file to server
         """
-        message = f"\tVERIFYING ATTACK SUCCESS: [at {int(time.time())}]\n"
-        self.process_print(message)
+        message = f"\t{Colors.MAGENTA}VERIFYING ATTACK SUCCESS{Colors.END} [at {int(time.time())}]"
+        print(message)
 
         # slow execution to ensure attack ran
         time.sleep(2)
 
         main_command_unique_id = attack['main_command_unique_id']
-        tmp_file_path = f'/tmp/{main_command_unique_id}.txt'
-        grab_screen_command = f"screen -r {main_command_unique_id} -X hardcopy {tmp_file_path}"
+        output_file_path =  os.path.join(self.exploit_directory, f'{main_command_unique_id}.txt')
+        grab_screen_command = f"screen -r {main_command_unique_id} -X hardcopy {output_file_path}"
 
         # create file with contents
         self.run_command(grab_screen_command, False)
 
-        main_screen_output = open(tmp_file_path, 'r').read()
-        os.remove(tmp_file_path)
+        main_screen_output = open(output_file_path, 'r').read()
 
         url = f'{self.api_source}/verify-best-attack-success'
-        headers = { 'API_KEY': self.api_key }
-        data = {
-            'main_screen_output': main_screen_output,
+        headers = {
+            'API_KEY': self.api_key,
+            'session_id': self.session_id,
         }
-        response = requests.post(url, data=data, headers=headers)
+        response = requests.post(url, json=main_screen_output, headers=headers)
         response_data = response.json()
 
         return response_data['is_successful']
@@ -957,11 +955,13 @@ class AutoHack:
         while True:
             best_attack = self.get_best_attack()
             if not best_attack['should_continue']:
-                print('No Exploit Discovered')
+                print('No Exploit Discovered: Ending Program')
                 break
 
             self.execute_attack(best_attack)
             if self.attack_is_successful(best_attack):
+                message = f"\t{Colors.GREEN}{Colors.BOLD}ATTACK SUCCESSFUL{Colors.END} [at {int(time.time())}]\n"
+                print(message)
                 break
 
     def exploit(self) -> None:
