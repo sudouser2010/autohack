@@ -408,11 +408,13 @@ class AutoHack:
         xml_directory = os.path.join(self.scan_directory, 'xml')
         log_directory = os.path.join(self.scan_directory, 'logs')
         self.exploit_directory = os.path.join(output_directory, 'exploit')
+        self.exploit_commands_attempted_directory = os.path.join(self.exploit_directory, 'commands_attempted')
         priv_directory = os.path.join(output_directory, 'priv')
         loot_directory = os.path.join(output_directory, 'loot')
         Utils.make_directories(
             self.scan_directory, xml_directory, log_directory,
-            self.exploit_directory, priv_directory, loot_directory
+            self.exploit_directory, priv_directory, loot_directory,
+            self.exploit_commands_attempted_directory
         )
 
         self.detected_services = set()
@@ -893,7 +895,14 @@ class AutoHack:
             if main_command_index == index:
                 attack['main_command_unique_id'] = unique_screen_name
 
-            screen_command = f"screen -dmS {unique_screen_name} bash -c '{command}'"
+            command_file_path = os.path.join(
+                self.exploit_commands_attempted_directory,
+                f'{unique_screen_name}.txt'
+            )
+            with open(command_file_path, "w") as file:
+                file.write(command)
+
+            screen_command = f'screen -dmS {unique_screen_name} bash -c "$(cat {command_file_path})"'
 
             target = self.run_command
             arguments = (screen_command, False)
@@ -913,6 +922,9 @@ class AutoHack:
                 # wait for screen command to finish
                 blocking_command = f"tail --pid=$(pgrep -f {unique_screen_name}) -f /dev/null"
                 self.run_command(blocking_command, False)
+
+            # remove command file to clean up directory
+            os.remove(command_file_path)
 
     def attack_is_successful(self, attack) -> bool:
         """
