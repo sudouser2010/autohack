@@ -8,7 +8,7 @@ WORKDIR /root
 RUN apt -y update && apt -y dist-upgrade && apt -y autoremove && apt clean
 
 # Install common and useful tools
-RUN apt -y install curl wget vim git net-tools whois netcat-traditional pciutils usbutils
+RUN apt -y install curl wget vim git net-tools whois netcat-traditional pciutils usbutils screen nano
 
 # Install useful languages
 RUN apt -y install python3-pip golang nodejs npm
@@ -38,6 +38,9 @@ RUN conda create --name autohack python=3.10 --yes
 RUN /root/miniconda3/envs/autohack/bin/pip install autohack==0.12 --root-user-action=ignore
 
 # Activate AutoHack Conda On Container Start
-RUN echo "source activate autohack" > ~/.bashrc
+RUN echo "source activate autohack" >> ~/.bashrc
+
+# Change Prompt
+RUN echo 'PS1="\033[92m\033[1mAutohack@Exothermic.Ai\033[0m: \033[34m\033[1m\w\033[0m$ "' >> ~/.bashrc
 
 WORKDIR /root/portal

