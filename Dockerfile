@@ -35,7 +35,7 @@ RUN conda init
 
 # Setup AutoHack Python Package
 RUN conda create --name autohack python=3.10 --yes
-RUN /root/miniconda3/envs/autohack/bin/pip install autohack==0.12 --root-user-action=ignore
+RUN /root/miniconda3/envs/autohack/bin/pip install autohack --root-user-action=ignore
 
 # Activate AutoHack Conda On Container Start
 RUN echo "source activate autohack" >> ~/.bashrc

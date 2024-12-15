@@ -36,6 +36,7 @@ class SuccessStatus:
     EXPLOIT_SUCCESSFUL = 'EXPLOIT_SUCCESSFUL'
     PRIVILEGE_ESCALATE_SUCCESSFUL = 'PRIVILEGE_ESCALATE_SUCCESSFUL'
 
+
 class Utils:
     class AutoHackException(Exception):
         pass
@@ -209,12 +210,11 @@ class Utils:
                 stderr=sp.STDOUT
             )
             result = result.decode().splitlines()
-            ipaddr = [l.split()[1].split('/')[0] for l in result if "inet" in l]
+            ipaddr = [line.split()[1].split('/')[0] for line in result if "inet" in line]
             return ipaddr[0]
 
         except (Exception,):
             return None
-
 
 
 @dataclass
@@ -695,7 +695,10 @@ class AutoHack:
             self.commands_ran.add(command)
             command = 'sudo ' + command
             time_before_command = int(time.time())
-            command_printed = f"SECONDARY ENUMERATE: [at {time_before_command}]\n\t{Colors.GREEN}{command}{Colors.END}"
+            command_printed = (
+                f"SECONDARY ENUMERATE: [at {time_before_command}]\n"
+                f"\t{Colors.GREEN}{command}{Colors.END}"
+            )
             self.process_print(command_printed)
             self.run_command(command)
             time_after_command = int(time.time())
@@ -948,7 +951,7 @@ class AutoHack:
         # slow execution to ensure attack ran
         time.sleep(2)
 
-        output_file_path =  os.path.join(self.exploit_directory, f'{self.spearhead_index_unique_id}.txt')
+        output_file_path = os.path.join(self.exploit_directory, f'{self.spearhead_index_unique_id}.txt')
         grab_screen_command = f"screen -r {self.spearhead_index_unique_id} -X hardcopy {output_file_path}"
 
         # create file with contents
@@ -1018,7 +1021,7 @@ class AutoHack:
             # delay so command will run
             time.sleep(command_wait_time_in_seconds)
 
-            output_file_path =  os.path.join(
+            output_file_path = os.path.join(
                 self.priv_directory,
                 f'{self.spearhead_index_unique_id}.txt'
             )
