@@ -1,5 +1,5 @@
 # Kali Linux latest with useful tools by tsumarios
-FROM kalilinux/kali-rolling
+FROM hdizzle/kalilinux
 
 # Set working directory to /root
 WORKDIR /root
@@ -13,11 +13,15 @@ RUN apt -y install curl wget vim git net-tools whois netcat-traditional pciutils
 # Install useful languages
 RUN apt -y install python3-pip golang nodejs npm
 
-## Install useful cybersecurity tools
-RUN apt -y install kali-tools-top10 exploitdb man-db dirb nikto wpscan uniscan lsof apktool dex2jar ltrace strace binwalk \
-    seclists snmp smbmap smbclient smtp-user-enum nbtscan enum4linux medusa sipvicious patator \
-    oscanner tnscmd10g rpcbind nfs-common sqsh dirsearch whatweb wkhtmltopdf unicornscan
-
+# Install useful cybersecurity tools
+RUN apt -y install nmap
+RUN apt -y install kali-tools-top10 exploitdb
+RUN apt -y install man-db dirb nikto wpscan uniscan lsof apktool dex2jar
+RUN apt -y install ltrace strace binwalk
+RUN apt -y install seclists snmp smbmap smbclient smtp-user-enum nbtscan
+RUN apt -y install enum4linux medusa sipvicious patator
+RUN apt -y install oscanner tnscmd10g rpcbind nfs-common sqsh
+RUN apt -y install dirsearch whatweb wkhtmltopdf unicornscan
 
 # Install Conda for AutoHack
 ENV PATH="/root/miniconda3/bin:${PATH}"
