@@ -148,7 +148,7 @@ ignore-service-names = [
 
     [[http.scan]]
     name = 'dirb'
-    command = 'dirsearch -u {scheme}://{target_address}:{port}/ -t 20  -f -e txt,html,php,asp,aspx,jsp,sh,pl,py -x 400,403,404,408,504,500 --simple-report "{scandir}/{port}_{scheme}_dirsearch.txt"'
+    command = 'dirsearch -u {scheme}://{target_address}:{port}/ -t 20  -f -e txt,html,php,asp,aspx,jsp,sh,pl,py -x 400,403,404,408,504,500 --output "{scandir}/{port}_{scheme}_dirsearch.txt"'
 #    command = 'dirb {scheme}://{target_address}:{port}/  /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt -l -r -S -X ",.txt,.html,.php,.asp,.aspx,.jsp,.sh,.pl,.py" -o "{scandir}/{port}_{scheme}_dirb.txt"'
 
 
