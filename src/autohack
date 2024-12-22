@@ -1169,8 +1169,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Does Enumeration')
     parser.add_argument(
         '-i', '--ip_address', action='store', type=str,
-        dest='ip_addr'
-             'ess', help='IP Address', required=True
+        dest='ip_address', help='IP Address', required=True
     )
     parser.add_argument(
         '-ai', '--attacker_ip_address', action='store', type=str,
