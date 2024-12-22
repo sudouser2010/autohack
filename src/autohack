@@ -314,6 +314,24 @@ class ProcessManager:
         process.kill_after_time = int(time.time()) + AutoHack.command_timeout
         process.decrement_retry_max()
 
+    def terminate_all_active_processes(self, show_message:bool=True) -> None:
+        for process in self.processes:
+
+            if not process.process_object.is_alive():
+                continue
+
+            if process.has_timed_out():
+                continue
+
+            process.process_object.terminate()
+
+            if not show_message:
+                continue
+
+            message = (f'\n{Colors.RED}{Colors.BOLD}KILLING PROCESS, PROGRAM ENDING: '
+                       f'PID:{process.process_object.pid}{Colors.END}')
+            Utils.process_safe_print(message)
+
     def heart_beat(self) -> None:
         while True:
             time.sleep(self.time_between_heart_beats)
@@ -345,14 +363,12 @@ class ProcessManager:
 
                 active_processes.append(process)
 
+            if AutoHack.should_kill_heart_beat:
+                self.terminate_all_active_processes()
+                break
+
             if active_processes:
                 self.print_active_processes_data(active_processes)
-
-            # kill heart_beat once primary and secondary enumeration is complete
-            should_kill_heart_beat = AutoHack.should_kill_heart_beat and len(active_processes) == 0
-
-            if should_kill_heart_beat:
-                break
 
     def run(self):
         self.heart_beat_process.start()
@@ -425,7 +441,6 @@ class AutoHack:
         self.detected_services = set()
         self.pattern_matches = dict()
         self.exploit_scans = set()
-        self.commands_ran = set()
         self.commands_run_log = os.path.join(log_directory, 'commands.log')
         self.detected_services_log = os.path.join(log_directory, 'detected_services.log')
         self.exploit_steps_log = os.path.join(log_directory, 'exploit_steps.log')
@@ -505,6 +520,14 @@ class AutoHack:
             process_id = current_process().pid
             _str = f"{Colors.CYAN}{Colors.BOLD}Process {process_id}:{Colors.END} {_str}"
         self.print(_str)
+
+    def command_has_been_run(self, command) -> bool:
+        try:
+            f = open(self.commands_run_log, "r")
+            all_commands_run = f.read()
+            return command in all_commands_run
+        except FileNotFoundError:
+            return False
 
     def log_command(self, command: str) -> None:
         """
@@ -686,13 +709,12 @@ class AutoHack:
         :return:
         """
         command = command.format(**service_data)
-        if command in self.commands_ran:
+        if self.command_has_been_run(command):
             return
 
         text_file_related_parameters = ['-on', 'tee', '-o', '--simple-report']
         output_file = Utils.determine_output_file(command, text_file_related_parameters)
         if Utils.should_run_command(output_file):
-            self.commands_ran.add(command)
             command = 'sudo ' + command
             time_before_command = int(time.time())
             command_printed = (
@@ -725,13 +747,12 @@ class AutoHack:
         :return:
         """
         command = command.format(**service_data)
-        if command in self.commands_ran:
+        if self.command_has_been_run(command):
             return
 
         xml_file_related_parameters = ['-ox']
         output_file = Utils.determine_output_file(command, xml_file_related_parameters)
         if Utils.should_run_command(output_file):
-            self.commands_ran.add(command)
             command = 'sudo ' + command
             time_before_command = int(time.time())
             command_printed = f"PRIMARY ENUMERATE: [at {time_before_command}]\n\t{Colors.GREEN}{command}{Colors.END}"
@@ -828,6 +849,7 @@ class AutoHack:
         :return:
         """
         Utils.print_time()
+        print('\n')
 
         port_scan_data = {
             'nmap_extra': self.nmap_extra,
@@ -980,7 +1002,8 @@ class AutoHack:
         while True:
             best_attack = self.get_best_attack()
             if not best_attack['should_continue']:
-                print('No Exploit Discovered: Ending Program')
+                self.should_kill_heart_beat = True
+                print('\n\nNo Exploit Discovered: Ending Program')
                 break
 
             self.execute_attack(best_attack)
@@ -1118,8 +1141,10 @@ class AutoHack:
         """
         if self.professional:
             self.attack_repeatedly()
-            self.privilege_escalate_repeatedly()
-            self.handle_success()
+
+            if self.success_status == SuccessStatus.EXPLOIT_SUCCESSFUL:
+                self.privilege_escalate_repeatedly()
+                self.handle_success()
 
         AutoHack.should_kill_heart_beat = True
 
