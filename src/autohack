@@ -329,7 +329,7 @@ class ProcessManager:
         process.kill_after_time = int(time.time()) + AutoHack.command_timeout
         process.decrement_retry_max()
 
-    def terminate_all_active_processes(self, show_message:bool=True) -> None:
+    def terminate_all_active_processes(self, show_message: bool = True) -> None:
         for process in self.processes:
 
             if not process.process_object.is_alive():
