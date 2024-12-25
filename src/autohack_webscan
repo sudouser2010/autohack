@@ -105,7 +105,7 @@ class AutoHackWebScan:
         self.verify_requirements()
         iterations = 0
         discovered_paths_statuses = {}
-        first_command = f'gobuster dir -u {self.url} -w {self.wordlist} -o {self.temp_file_path}'
+        first_command = f'gobuster dir -u "{self.url}" -w "{self.wordlist}" -o "{self.temp_file_path}"'
         commands = [
             first_command,
         ]
