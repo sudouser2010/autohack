@@ -1213,7 +1213,7 @@ if __name__ == "__main__":
     parser.add_argument(
         '-r', '--retry_max', action='store', type=int,
         dest='retry_max', help='Max Number of Times To Retry A Command',
-        default=1
+        default=0
     )
     parser.add_argument(
         '-hbt', '--heart_beat_time', action='store', type=int,
