@@ -147,11 +147,8 @@ ignore-service-names = [
     command = 'nikto -ask=no -h {scheme}://{target_address}:{port} 2>&1 | tee "{scandir}/{port}_{scheme}_nikto.txt"'
 
     [[http.scan]]
-    name = 'dirb'
-    command = 'dirsearch -u {scheme}://{target_address}:{port}/ -t 20  -f -e txt,html,php,asp,aspx,jsp,sh,pl,py -x 400,403,404,408,504,500 --output "{scandir}/{port}_{scheme}_dirsearch.txt"'
-#    command = 'dirb {scheme}://{target_address}:{port}/  /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt -l -r -S -X ",.txt,.html,.php,.asp,.aspx,.jsp,.sh,.pl,.py" -o "{scandir}/{port}_{scheme}_dirb.txt"'
-
-
+    name = 'autohack_webscan'
+    command = 'autohack_webscan -u {scheme}://{target_address}:{port}/ -o "{scandir}/{port}_{scheme}_autohack_webscan.txt" -w "/usr/share/wordlists/dirb/common.txt" -pro'
 
     [[http.exploit]]
     description = 'Use Dirb or Dirsearch to Search Directories of Interest'
