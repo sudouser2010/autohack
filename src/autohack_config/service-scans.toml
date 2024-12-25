@@ -143,10 +143,6 @@ ignore-service-names = [
     command = 'whatweb --color=never --no-errors -a 3 -v {scheme}://{target_address}:{port} 2>&1 | tee "{scandir}/{port}_{scheme}_whatweb.txt"'
 
     [[http.scan]]
-    name = 'nikto'
-    command = 'nikto -ask=no -h {scheme}://{target_address}:{port} 2>&1 | tee "{scandir}/{port}_{scheme}_nikto.txt"'
-
-    [[http.scan]]
     name = 'autohack_webscan'
     command = 'autohack_webscan -u {scheme}://{target_address}:{port}/ -o "{scandir}/{port}_{scheme}_autohack_webscan.txt" -w "/usr/share/wordlists/dirb/common.txt" -pro'
 
