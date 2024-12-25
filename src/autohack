@@ -715,7 +715,6 @@ class AutoHack:
         text_file_related_parameters = ['-on', 'tee', '-o', '--simple-report']
         output_file = Utils.determine_output_file(command, text_file_related_parameters)
         if Utils.should_run_command(output_file):
-            command = 'sudo ' + command
             time_before_command = int(time.time())
             command_printed = (
                 f"SECONDARY ENUMERATE: [at {time_before_command}]\n"
@@ -753,7 +752,6 @@ class AutoHack:
         xml_file_related_parameters = ['-ox']
         output_file = Utils.determine_output_file(command, xml_file_related_parameters)
         if Utils.should_run_command(output_file):
-            command = 'sudo ' + command
             time_before_command = int(time.time())
             command_printed = f"PRIMARY ENUMERATE: [at {time_before_command}]\n\t{Colors.GREEN}{command}{Colors.END}"
             self.process_print(command_printed)
