@@ -23,6 +23,7 @@ from bs4 import BeautifulSoup
 
 
 class Colors:
+    BLUE = '\033[34m'
     CYAN = '\033[96m'
     GREEN = '\033[92m'
     MAGENTA = '\033[95m'
@@ -770,7 +771,10 @@ class AutoHack:
         output_file = Utils.determine_output_file(command, xml_file_related_parameters)
         if Utils.should_run_command(output_file):
             time_before_command = int(time.time())
-            command_printed = f"PRIMARY ENUMERATE: [at {time_before_command}]\n\t{Colors.GREEN}{command}{Colors.END}"
+            command_printed = (
+                f"{Colors.BLUE}{Colors.BOLD}PRIMARY ENUMERATE:{Colors.END} "
+                f"[at {time_before_command}]\n\t{Colors.GREEN}{command}{Colors.END}"
+            )
             self.process_print(command_printed)
             self.run_command(command)
             time_after_command = int(time.time())
