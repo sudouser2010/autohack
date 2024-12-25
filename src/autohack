@@ -269,6 +269,20 @@ class ProcessManager:
             target=self.heart_beat,
         )
 
+    def wait_until_pending_processes_have_completed(self):
+        """
+        This ensures, that we don't move on to the next step until
+        all preexisting processes have completed.
+        :return:
+        """
+        half_time_between_heart_beats = self.time_between_heart_beats / 2
+        while True:
+            if len(self.processes) == 0:
+                break
+            time.sleep(half_time_between_heart_beats)
+
+        print('\nPending Processes Have Completed. Moving To Next Step\n')
+
     def append_process(self, process: ProcessReference) -> None:
         self.processes.append(process)
 
@@ -369,6 +383,9 @@ class ProcessManager:
 
             if active_processes:
                 self.print_active_processes_data(active_processes)
+            else:
+                # when there are no active processes, reset processes
+                self.processes = []
 
     def run(self):
         self.heart_beat_process.start()
@@ -862,6 +879,8 @@ class AutoHack:
                 self.execute_primary_enumerate_command(
                     command, port_scan_data
                 )
+
+        self.process_manager.wait_until_pending_processes_have_completed()
 
     def upload_enumeration_files(self):
         """
