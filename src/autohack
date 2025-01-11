@@ -505,9 +505,9 @@ class AutoHack:
         ]
 
         possible_config_directories_locations = [
-                                                    local_config_directory,
-                                                    global_config_directory
-                                                ] + site_packages_autohack_directories
+            local_config_directory,
+            global_config_directory
+        ] + site_packages_autohack_directories
 
         for prospective_directory in possible_config_directories_locations:
             if self.verbose:
@@ -1273,7 +1273,6 @@ class AutoHack:
                 print('\n\nNo OS Exploit Discovered')
                 break
 
-
             self.execute_os_attack(best_attack)
             if self.user_is_root():
                 message = f"\t{Colors.GREEN}{Colors.BOLD}OS ATTACK SUCCESSFUL{Colors.END} [at {int(time.time())}]\n"
@@ -1360,18 +1359,17 @@ class AutoHack:
                 os_enumeration_commands = self.determine_primary_os_enumeration()
             except (Exception,):
                 raise Utils.AutoHackException(
-                    f'Error Determining Primary OS Enumerating'
+                    'Error Determining Primary OS Enumerating'
                 )
 
             # run primary os enumeration
             try:
-                secondary_enumeration = self.run_primary_os_enumeration(os_enumeration_commands)
+                secondary_enumeration = self.run_primary_os_enumeration(os_enumeration_commands)  # noqa: F841
                 # todo: do secondary enumeration
             except (Exception,):
                 raise Utils.AutoHackException(
-                    f'Error With Primary OS Enumeration'
+                    'Error With Primary OS Enumeration'
                 )
-
 
     def exploit_os(self) -> None:
         """
