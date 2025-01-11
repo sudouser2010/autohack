@@ -22,7 +22,8 @@ RUN apt -y install seclists snmp smbmap smbclient smtp-user-enum nbtscan
 RUN apt -y update
 RUN apt -y install enum4linux medusa sipvicious patator
 RUN apt -y install oscanner tnscmd10g rpcbind nfs-common sqsh
-RUN apt -y install gobuster whatweb wkhtmltopdf unicornscan wordlists dirb
+RUN apt -y install gobuster whatweb wkhtmltopdf unicornscan wordlists
+RUN apt -y install dirb
 
 # Install Conda for AutoHack
 ENV PATH="/root/miniconda3/bin:${PATH}"
